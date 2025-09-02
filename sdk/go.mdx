@@ -1,0 +1,110 @@
+---
+title: Go SDK
+description: Complete guide for integrating PlugnPay with Go applications
+---
+
+## Installation
+
+```bash
+go get github.com/plugnpay/go-sdk
+```
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "github.com/plugnpay/go-sdk"
+    "os"
+)
+
+func main() {
+    client := plugnpay.New(os.Getenv("PLUGNPAY_API_KEY"))
+}
+```
+
+## Core Operations
+
+### Creating Checkout Sessions
+
+Create secure checkout sessions for your customers:
+
+```go
+package main
+
+import (
+    "github.com/plugnpay/go-sdk"
+    "fmt"
+    "os"
+)
+
+func main() {
+    client := plugnpay.New(os.Getenv("PLUGNPAY_API_KEY"))
+    
+    result, err := client.CreateCheckoutSession(&plugnpay.CheckoutSessionRequest{
+        ProductID:   "premium-plan",
+        CustomerID:  "user_123",
+    })
+    
+    if err != nil {
+        panic(err)
+    }
+    
+    fmt.Println(result.CheckoutURL)
+    // Redirect your customer to this URL
+}
+```
+
+### Checking Customer Access
+
+Verify if a customer has access to premium features:
+
+```go
+data, err := client.CheckAccess(&plugnpay.AccessRequest{
+    CustomerID: "user_123",
+    FeatureID:  "premium-features",
+})
+
+if err != nil {
+    panic(err)
+}
+
+if data.HasAccess {
+    fmt.Println("Customer has access")
+    fmt.Printf("Usage remaining: %d\n", data.Remaining)
+} else {
+    fmt.Println("Access denied. Upgrade required.")
+}
+```
+
+### Usage Tracking
+
+Track feature usage and get analytics:
+
+```go
+// Track usage
+err := client.Track(&plugnpay.TrackRequest{
+    CustomerID: "user_123",
+    FeatureID:  "ai-messages",
+    Value:      1,
+})
+
+if err != nil {
+    panic(err)
+}
+
+// Get usage statistics
+usage, err := client.GetUsage(&plugnpay.UsageRequest{
+    CustomerID: "user_123",
+    FeatureID:  "ai-messages",
+    Period:     "month", // 'day', 'week', 'month'
+})
+
+if err != nil {
+    panic(err)
+}
+
+fmt.Printf("Total usage: %d\n", usage.Total)
+fmt.Printf("Remaining: %d\n", usage.Remaining)
+```

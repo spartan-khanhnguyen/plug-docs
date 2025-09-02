@@ -1,0 +1,77 @@
+---
+title: TypeScript SDK
+description: Complete guide for integrating PlugnPay with TypeScript/JavaScript
+---
+
+## Installation
+
+```bash
+npm install @plugnpay/sdk
+```
+
+## Quick Start
+
+```typescript
+import { PlugnPay } from '@plugnpay/sdk';
+
+const client = new PlugnPay({
+  apiKey: process.env.PLUGNPAY_API_KEY,
+});
+```
+
+## Core Operations
+
+### Creating Checkout Sessions
+
+Create secure checkout sessions for your customers:
+
+```typescript
+const result = await client.createCheckoutSession({
+  product_id: 'premium-plan',
+  customer_id: 'user_123',
+});
+
+console.log(result.checkoutUrl);
+// Redirect your customer to this URL
+```
+
+### Checking Customer Access
+
+Verify if a customer has access to premium features:
+
+```typescript
+const { data } = await client.checkAccess({
+  customer_id: 'user_123',
+  feature_id: 'premium-features',
+});
+
+if (data.hasAccess) {
+  console.log('Customer has access');
+  console.log('Usage remaining:', data.remaining);
+} else {
+  console.log('Access denied. Upgrade required.');
+}
+```
+
+### Usage Tracking
+
+Track feature usage and get analytics:
+
+```typescript
+// Track usage
+await client.track({
+  customer_id: 'user_123',
+  feature_id: 'ai-messages',
+  value: 1,
+});
+
+// Get usage statistics
+const usage = await client.getUsage({
+  customer_id: 'user_123',
+  feature_id: 'ai-messages',
+  period: 'month', // 'day', 'week', 'month'
+});
+
+console.log('Total usage:', usage.total);
+console.log('Remaining:', usage.remaining);
+```

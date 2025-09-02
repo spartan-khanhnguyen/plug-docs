@@ -1,0 +1,77 @@
+---
+title: Python SDK
+description: Complete guide for integrating PlugnPay with Python applications
+---
+
+## Installation
+
+```bash
+pip install plugnpay
+```
+
+## Quick Start
+
+```python
+from plugnpay import PlugnPay
+import os
+
+client = PlugnPay(
+    api_key=os.environ["PLUGNPAY_API_KEY"]
+)
+```
+
+## Core Operations
+
+### Creating Checkout Sessions
+
+Create secure checkout sessions for your customers:
+
+```python
+result = client.create_checkout_session(
+    product_id="premium-plan",
+    customer_id="user_123"
+)
+
+print(result.checkout_url)
+# Redirect your customer to this URL
+```
+
+### Checking Customer Access
+
+Verify if a customer has access to premium features:
+
+```python
+data = client.check_access(
+    customer_id="user_123",
+    feature_id="premium-features"
+)
+
+if data.has_access:
+    print("Customer has access")
+    print(f"Usage remaining: {data.remaining}")
+else:
+    print("Access denied. Upgrade required.")
+```
+
+### Usage Tracking
+
+Track feature usage and get analytics:
+
+```python
+# Track usage
+client.track(
+    customer_id="user_123",
+    feature_id="ai-messages",
+    value=1
+)
+
+# Get usage statistics
+usage = client.get_usage(
+    customer_id="user_123",
+    feature_id="ai-messages",
+    period="month"  # 'day', 'week', 'month'
+)
+
+print(f"Total usage: {usage.total}")
+print(f"Remaining: {usage.remaining}")
+```
