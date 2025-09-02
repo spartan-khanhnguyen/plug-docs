@@ -1,0 +1,112 @@
+---
+title: Swift SDK
+description: Complete guide for integrating PlugnPay with Swift and iOS applications
+---
+
+## Installation
+
+### Swift Package Manager
+
+Add the following to your `Package.swift` file:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/plugnpay/swift-sdk", from: "1.0.0")
+]
+```
+
+Or add it through Xcode:
+1. File → Add Package Dependencies
+2. Enter: `https://github.com/plugnpay/swift-sdk`
+
+### CocoaPods
+
+```ruby
+pod 'PlugnPaySDK'
+```
+
+### Carthage
+
+```
+github "plugnpay/swift-sdk"
+```
+
+## Quick Start
+
+```swift
+import PlugnPaySDK
+
+let client = PlugnPay(
+    apiKey: ProcessInfo.processInfo.environment["PLUGNPAY_API_KEY"]!
+)
+```
+
+## Core Operations
+
+### Creating Checkout Sessions
+
+Create secure checkout sessions for your customers:
+
+```swift
+import PlugnPaySDK
+
+let client = PlugnPay(
+    apiKey: ProcessInfo.processInfo.environment["PLUGNPAY_API_KEY"]!
+)
+
+// Async function
+func createCheckout() async throws {
+    let result = try await client.createCheckoutSession(
+        productId: "premium-plan",
+        customerId: "user_123"
+    )
+    
+    print(result.checkoutURL)
+    // Open this URL in a web view or Safari
+}
+```
+
+### Checking Customer Access
+
+Verify if a customer has access to premium features:
+
+```swift
+func checkAccess() async throws {
+    let data = try await client.checkAccess(
+        customerId: "user_123",
+        featureId: "premium-features"
+    )
+    
+    if data.hasAccess {
+        print("Customer has access")
+        print("Usage remaining: \(data.remaining)")
+    } else {
+        print("Access denied. Upgrade required.")
+    }
+}
+```
+
+### Usage Tracking
+
+Track feature usage and get analytics:
+
+```swift
+func trackUsage() async throws {
+    // Track usage
+    try await client.track(
+        customerId: "user_123",
+        featureId: "ai-messages",
+        value: 1
+    )
+    
+    // Get usage statistics
+    let usage = try await client.getUsage(
+        customerId: "user_123",
+        featureId: "ai-messages",
+        period: "month" // "day", "week", "month"
+    )
+    
+    print("Total usage: \(usage.total)")
+    print("Remaining: \(usage.remaining)")
+}
+```

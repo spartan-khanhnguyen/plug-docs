@@ -1,0 +1,126 @@
+---
+title: Kotlin SDK
+description: Complete guide for integrating PlugnPay with Kotlin applications
+---
+
+## Installation
+
+### Gradle (Kotlin DSL)
+
+```kotlin
+dependencies {
+    implementation("dev.plugnpay:sdk:1.0.0")
+}
+```
+
+### Gradle (Groovy)
+
+```groovy
+dependencies {
+    implementation 'dev.plugnpay:sdk:1.0.0'
+}
+```
+
+### Maven
+
+```xml
+<dependency>
+    <groupId>dev.plugnpay</groupId>
+    <artifactId>sdk</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+## Quick Start
+
+```kotlin
+import dev.plugnpay.sdk.PlugnPay
+
+val client = PlugnPay(
+    apiKey = System.getenv("PLUGNPAY_API_KEY")
+)
+```
+
+## Core Operations
+
+### Creating Checkout Sessions
+
+Create secure checkout sessions for your customers:
+
+```kotlin
+import dev.plugnpay.sdk.PlugnPay
+import dev.plugnpay.sdk.models.CheckoutSessionRequest
+
+val client = PlugnPay(
+    apiKey = System.getenv("PLUGNPAY_API_KEY")
+)
+
+// Suspending function - use within coroutine
+suspend fun createCheckout() {
+    val result = client.createCheckoutSession(
+        CheckoutSessionRequest(
+            productId = "premium-plan",
+            customerId = "user_123"
+        )
+    )
+    
+    println(result.checkoutUrl)
+    // Redirect your customer to this URL
+}
+```
+
+### Checking Customer Access
+
+Verify if a customer has access to premium features:
+
+```kotlin
+import dev.plugnpay.sdk.models.AccessRequest
+
+suspend fun checkAccess() {
+    val data = client.checkAccess(
+        AccessRequest(
+            customerId = "user_123",
+            featureId = "premium-features"
+        )
+    )
+    
+    if (data.hasAccess) {
+        println("Customer has access")
+        println("Usage remaining: ${data.remaining}")
+    } else {
+        println("Access denied. Upgrade required.")
+    }
+}
+```
+
+### Usage Tracking
+
+Track feature usage and get analytics:
+
+```kotlin
+import dev.plugnpay.sdk.models.TrackRequest
+import dev.plugnpay.sdk.models.UsageRequest
+
+suspend fun trackUsage() {
+    // Track usage
+    client.track(
+        TrackRequest(
+            customerId = "user_123",
+            featureId = "ai-messages",
+            value = 1
+        )
+    )
+    
+    // Get usage statistics
+    val usage = client.getUsage(
+        UsageRequest(
+            customerId = "user_123",
+            featureId = "ai-messages",
+            period = "month" // 'day', 'week', 'month'
+        )
+    )
+    
+    println("Total usage: ${usage.total}")
+    println("Remaining: ${usage.remaining}")
+}
+```
