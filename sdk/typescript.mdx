@@ -1,7 +1,13 @@
 ---
 title: TypeScript SDK
-description: Complete guide for integrating PlugnPay with TypeScript/JavaScript
+description: Complete guide for integrating PlugnPay with TypeScript/JavaScript applications
 ---
+
+## Overview
+
+The plugnpay-ts SDK provides a secure, server-side interface for developers to integrate their applications with the PlugnPay service. It handles customer management, checkout sessions, feature entitlement checks, usage tracking, and real-time event handling, abstracting away the complexity of direct API calls and webhook management.
+
+**Requirements:** Node.js v18+
 
 ## Installation
 
@@ -9,69 +15,530 @@ description: Complete guide for integrating PlugnPay with TypeScript/JavaScript
 npm install @plugnpay/sdk
 ```
 
-## Quick Start
+## Configuration & Initialization
 
+The SDK is configurable through environment variables and an initialization constructor.
+
+### API Key Authentication
+
+Authentication is handled via an API key that can be configured in two ways:
+
+**Environment Variable (Recommended):**
+```bash
+export PLUGNPAY_API_KEY="pnp_sk_xxxxxx"
+```
+
+**Direct Configuration:**
 ```typescript
 import { PlugnPay } from '@plugnpay/sdk';
 
-const client = new PlugnPay({
-  apiKey: process.env.PLUGNPAY_API_KEY,
+// Initializes by reading PLUGNPAY_API_KEY from process.env
+const client = new PlugnPay();
+
+// Alternatively, initialize with explicit options
+const clientWithOptions = new PlugnPay({
+  apiKey: 'pnp_sk_xxxxxx', // Overrides env var
 });
 ```
 
-## Core Operations
+## Core Methods
 
-### Creating Checkout Sessions
+All methods are async and return a Promise. They perform POST requests to the PlugnPay API with proper authentication and JSON content headers.
 
-Create secure checkout sessions for your customers:
+### getCustomer
+
+Retrieves or creates a customer record (upsert logic).
 
 ```typescript
-const result = await client.createCheckoutSession({
-  product_id: 'premium-plan',
-  customer_id: 'user_123',
+const customer = await client.getCustomer({
+  email: 'user@example.com'
 });
-
-console.log(result.checkoutUrl);
-// Redirect your customer to this URL
 ```
 
-### Checking Customer Access
+**Input:**
+```typescript
+interface GetCustomerArgs {
+  email: string;
+}
+```
 
-Verify if a customer has access to premium features:
+**Returns:** `Promise<Customer>`
+```typescript
+interface Customer {
+  id: string; // PlugnPay customer ID (e.g., 'pnpc_xxxxxx')
+  email: string;
+  stripeCustomerId: string; // Corresponding Stripe Customer ID
+  createdAt: string; // ISO 8601 timestamp
+}
+```
+
+### createCheckoutSession
+
+Generates a Stripe Checkout Session URL for customer purchases.
 
 ```typescript
-const { data } = await client.checkAccess({
-  customer_id: 'user_123',
-  feature_id: 'premium-features',
+const session = await client.createCheckoutSession({
+  customerId: 'pnpc_xxxxxx',
+  productId: 'premium-plan',
+  successUrl: 'https://yourapp.com/success',
+  cancelUrl: 'https://yourapp.com/cancel' // Optional
 });
 
-if (data.hasAccess) {
-  console.log('Customer has access');
-  console.log('Usage remaining:', data.remaining);
+console.log(`Checkout URL: ${session.url}`);
+```
+
+**Input:**
+```typescript
+interface CreateCheckoutSessionArgs {
+  customerId: string;
+  productId: string; // Product ID from your PlugnPay dashboard
+  successUrl: string; // URL to redirect after successful payment
+  cancelUrl?: string; // Optional: URL to redirect on cancellation
+}
+```
+
+**Returns:** `Promise<CheckoutSession>`
+```typescript
+interface CheckoutSession {
+  url: string; // The Stripe Checkout URL
+}
+```
+
+### checkAccess
+
+Checks if a customer has access to a specific feature based on their active subscription.
+
+```typescript
+const access = await client.checkAccess({
+  customerId: 'pnpc_xxxxxx',
+  featureId: 'premium-features'
+});
+
+if (access.hasAccess) {
+  console.log(`Access granted! Remaining: ${access.remaining}`);
 } else {
   console.log('Access denied. Upgrade required.');
 }
 ```
 
-### Usage Tracking
+**Input:**
+```typescript
+interface CheckAccessArgs {
+  customerId: string;
+  featureId: string; // Feature ID from your PlugnPay dashboard
+}
+```
 
-Track feature usage and get analytics:
+**Returns:** `Promise<CheckAccessResponse>`
+```typescript
+interface CheckAccessResponse {
+  hasAccess: boolean; // True if the customer's plan includes the feature
+  remaining?: number; // For metered features, remaining usage in current period
+}
+```
+
+### trackUsage
+
+Reports usage for a metered feature. This action is idempotent.
 
 ```typescript
-// Track usage
-await client.track({
-  customer_id: 'user_123',
-  feature_id: 'ai-messages',
+const result = await client.trackUsage({
+  customerId: 'pnpc_xxxxxx',
+  featureId: 'ai-messages',
   value: 1,
+  idempotencyKey: 'unique-key-123' // Optional
 });
+```
 
-// Get usage statistics
+**Input:**
+```typescript
+interface TrackUsageArgs {
+  customerId: string;
+  featureId: string;
+  value: number; // Usage amount to report (e.g., 1 for 1 credit)
+  idempotencyKey?: string; // Prevents double-reporting
+}
+```
+
+**Returns:** `Promise<TrackUsageResponse>`
+```typescript
+interface TrackUsageResponse {
+  success: boolean;
+}
+```
+
+### getUsage
+
+Retrieves current usage details for a metered feature.
+
+```typescript
 const usage = await client.getUsage({
-  customer_id: 'user_123',
-  feature_id: 'ai-messages',
-  period: 'month', // 'day', 'week', 'month'
+  customerId: 'pnpc_xxxxxx',
+  featureId: 'ai-messages'
 });
 
-console.log('Total usage:', usage.total);
-console.log('Remaining:', usage.remaining);
+console.log(`Total usage: ${usage.totalUsage}`);
+console.log(`Remaining: ${usage.remaining}`);
+```
+
+**Input:**
+```typescript
+interface GetUsageArgs {
+  customerId: string;
+  featureId: string;
+}
+```
+
+**Returns:** `Promise<GetUsageResponse>`
+```typescript
+interface GetUsageResponse {
+  limit: number | null; // Total limit for period (null for unlimited)
+  totalUsage: number; // Total usage in current billing period
+  remaining: number | null; // Remaining usage (null if limit is null)
+}
+```
+
+## Real-time Event Handling
+
+The SDK manages a persistent Server-Sent Events (SSE) connection to the PlugnPay event stream, providing a simple EventEmitter interface for handling real-time events.
+
+### Event Types
+
+The SDK exports strongly-typed event constants for autocompletion and error prevention:
+
+```typescript
+import { PlugnPay, PlugnPayEvent } from '@plugnpay/sdk';
+
+const client = new PlugnPay();
+
+// Available events:
+// - PlugnPayEvent.SubscriptionCreated
+// - PlugnPayEvent.SubscriptionRenewed  
+// - PlugnPayEvent.SubscriptionCancelled
+// - PlugnPayEvent.SubscriptionEnded
+// - PlugnPayEvent.InvoicePaid
+// - PlugnPayEvent.InvoicePaymentFailed
+```
+
+### Basic Event Listening
+
+```typescript
+import { PlugnPay, PlugnPayEvent } from '@plugnpay/sdk';
+
+const client = new PlugnPay();
+
+client.on(PlugnPayEvent.SubscriptionCreated, (payload) => {
+  console.log(`New subscription for ${payload.data.customer.email}!`);
+  // Provision services, add to mailing list, etc.
+});
+
+client.on('error', (err) => {
+  // Handle connection errors to the event stream
+  console.error('PlugnPay event stream error:', err);
+});
+```
+
+### Event Payload Structure
+
+All events follow a consistent payload structure:
+
+```typescript
+interface BaseEventPayload<T> {
+  eventId: string;
+  eventType: string; // e.g., 'subscription.created'
+  createdAt: string; // ISO 8601 timestamp
+  data: T;
+}
+```
+
+### Subscription Events
+
+For subscription-related events (`SubscriptionCreated`, `SubscriptionRenewed`, etc.):
+
+```typescript
+interface SubscriptionEventData {
+  customer: Customer;
+  subscription: Subscription;
+}
+
+interface Subscription {
+  id: string; // PlugnPay subscription ID
+  stripeSubscriptionId: string;
+  status: 'active' | 'past_due' | 'unpaid' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'trialing';
+  currentPeriodStart: string; // ISO 8601
+  currentPeriodEnd: string; // ISO 8601
+  productId: string;
+}
+```
+
+### Invoice Events
+
+For invoice-related events (`InvoicePaid`, `InvoicePaymentFailed`):
+
+```typescript
+interface InvoiceEventData {
+  customer: Customer;
+  invoice: Invoice;
+}
+
+interface Invoice {
+  id: string; // PlugnPay invoice ID
+  stripeInvoiceId: string;
+  status: 'paid' | 'open' | 'void' | 'uncollectible' | 'draft';
+  amountDue: number; // In cents
+  amountPaid: number; // In cents
+  currency: string;
+  url: string | null; // Hosted invoice URL from Stripe
+}
+```
+
+### Complete Event Handling Example
+
+```typescript
+import { PlugnPay, PlugnPayEvent } from '@plugnpay/sdk';
+
+const client = new PlugnPay();
+
+// Subscription lifecycle events
+client.on(PlugnPayEvent.SubscriptionCreated, (payload) => {
+  const { customer, subscription } = payload.data;
+  console.log(`New ${subscription.productId} subscription for ${customer.email}`);
+  
+  // Provision account, send welcome email
+  provisionNewAccount(customer.id);
+  sendWelcomeEmail(customer.email);
+});
+
+client.on(PlugnPayEvent.SubscriptionRenewed, (payload) => {
+  const { customer, subscription } = payload.data;
+  console.log(`Subscription renewed for ${customer.email}`);
+  console.log(`Next billing period: ${subscription.currentPeriodEnd}`);
+  
+  // Extend service, reset usage counters
+  extendServiceAccess(customer.id, subscription.currentPeriodEnd);
+});
+
+client.on(PlugnPayEvent.SubscriptionCancelled, (payload) => {
+  const { customer, subscription } = payload.data;
+  console.log(`Subscription cancelled for ${customer.email}`);
+  console.log(`Access ends: ${subscription.currentPeriodEnd}`);
+  
+  // Schedule access revocation, send retention email
+  scheduleAccessRevocation(customer.id, subscription.currentPeriodEnd);
+});
+
+client.on(PlugnPayEvent.SubscriptionEnded, (payload) => {
+  const { customer } = payload.data;
+  console.log(`Subscription ended for ${customer.email}`);
+  
+  // Revoke access, archive data
+  revokeAccess(customer.id);
+});
+
+// Payment events
+client.on(PlugnPayEvent.InvoicePaid, (payload) => {
+  const { customer, invoice } = payload.data;
+  const amount = invoice.amountPaid / 100; // Convert from cents
+  console.log(`Payment of $${amount} succeeded for ${customer.email}`);
+  
+  // Send receipt, extend service
+  sendPaymentReceipt(customer.email, invoice.url);
+});
+
+client.on(PlugnPayEvent.InvoicePaymentFailed, (payload) => {
+  const { customer, invoice } = payload.data;
+  console.log(`Payment failed for ${customer.email}`);
+  
+  // Send dunning email, pause service
+  sendPaymentFailedNotification(customer.id, invoice.url);
+  pauseServiceAccess(customer.id);
+});
+
+// Error handling
+client.on('error', (err) => {
+  console.error('PlugnPay event stream error:', err);
+  // Implement reconnection logic, alerting, etc.
+});
+
+// Helper functions (implement according to your needs)
+function provisionNewAccount(customerId: string) { /* ... */ }
+function sendWelcomeEmail(email: string) { /* ... */ }
+function extendServiceAccess(customerId: string, endDate: string) { /* ... */ }
+function scheduleAccessRevocation(customerId: string, endDate: string) { /* ... */ }
+function revokeAccess(customerId: string) { /* ... */ }
+function sendPaymentReceipt(email: string, invoiceUrl: string | null) { /* ... */ }
+function sendPaymentFailedNotification(customerId: string, invoiceUrl: string | null) { /* ... */ }
+function pauseServiceAccess(customerId: string) { /* ... */ }
+```
+
+## Error Handling
+
+The SDK throws typed errors for various conditions:
+
+```typescript
+import { PlugnPay, PlugnPayError } from '@plugnpay/sdk';
+
+const client = new PlugnPay();
+
+try {
+  const customer = await client.getCustomer({
+    email: 'test@example.com'
+  });
+} catch (error) {
+  if (error instanceof PlugnPayError) {
+    console.error('PlugnPay API error:', error.message);
+    console.error('Status code:', error.statusCode);
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+## Complete Integration Example
+
+```typescript
+import { PlugnPay, PlugnPayEvent } from '@plugnpay/sdk';
+
+class PlugnPayService {
+  private client: PlugnPay;
+
+  constructor() {
+    this.client = new PlugnPay();
+    this.setupEventHandlers();
+  }
+
+  async createCustomerAndCheckout(email: string, productId: string) {
+    try {
+      // Get or create customer
+      const customer = await this.client.getCustomer({ email });
+      console.log(`Customer ID: ${customer.id}`);
+
+      // Create checkout session
+      const session = await this.client.createCheckoutSession({
+        customerId: customer.id,
+        productId,
+        successUrl: 'https://yourapp.com/success',
+        cancelUrl: 'https://yourapp.com/cancel'
+      });
+
+      return {
+        customerId: customer.id,
+        checkoutUrl: session.url
+      };
+    } catch (error) {
+      console.error('Checkout creation failed:', error);
+      throw error;
+    }
+  }
+
+  async checkUserAccess(customerId: string, featureId: string) {
+    try {
+      const access = await this.client.checkAccess({
+        customerId,
+        featureId
+      });
+
+      if (access.hasAccess) {
+        // Track usage for metered features
+        await this.client.trackUsage({
+          customerId,
+          featureId,
+          value: 1
+        });
+
+        // Get updated usage stats
+        const usage = await this.client.getUsage({
+          customerId,
+          featureId
+        });
+
+        return {
+          hasAccess: true,
+          usage: usage.totalUsage,
+          remaining: usage.remaining
+        };
+      }
+
+      return { hasAccess: false };
+    } catch (error) {
+      console.error('Access check failed:', error);
+      throw error;
+    }
+  }
+
+  private setupEventHandlers() {
+    this.client.on(PlugnPayEvent.SubscriptionCreated, (payload) => {
+      // Handle new subscription
+      console.log('New subscription created:', payload.data.customer.email);
+    });
+
+    this.client.on(PlugnPayEvent.InvoicePaymentFailed, (payload) => {
+      // Handle failed payment
+      console.log('Payment failed:', payload.data.customer.email);
+    });
+
+    this.client.on('error', (err) => {
+      console.error('PlugnPay event stream error:', err);
+    });
+  }
+}
+
+// Usage
+const plugnPayService = new PlugnPayService();
+
+// Create checkout for a customer
+const checkout = await plugnPayService.createCustomerAndCheckout(
+  'customer@example.com',
+  'premium-plan'
+);
+
+console.log(`Redirect to: ${checkout.checkoutUrl}`);
+
+// Later, check if user has access to features
+const accessResult = await plugnPayService.checkUserAccess(
+  checkout.customerId,
+  'premium-features'
+);
+
+if (accessResult.hasAccess) {
+  console.log(`Feature access granted. Usage: ${accessResult.usage}`);
+} else {
+  console.log('Upgrade required for this feature');
+}
+```
+
+## Type Definitions
+
+The SDK exports comprehensive TypeScript interfaces:
+
+```typescript
+// Core types
+export interface Customer { /* ... */ }
+export interface CheckoutSession { /* ... */ }
+export interface CheckAccessResponse { /* ... */ }
+export interface TrackUsageResponse { /* ... */ }
+export interface GetUsageResponse { /* ... */ }
+
+// Event types
+export interface BaseEventPayload<T> { /* ... */ }
+export interface SubscriptionEventData { /* ... */ }
+export interface InvoiceEventData { /* ... */ }
+export interface Subscription { /* ... */ }
+export interface Invoice { /* ... */ }
+
+// Configuration
+export interface PlugnPayConfig {
+  apiKey?: string;
+  apiUrl?: string;
+}
+
+// Events enum
+export enum PlugnPayEvent {
+  SubscriptionCreated = 'subscription.created',
+  SubscriptionRenewed = 'subscription.renewed',
+  SubscriptionCancelled = 'subscription.cancelled',
+  SubscriptionEnded = 'subscription.ended',
+  InvoicePaid = 'invoice.paid',
+  InvoicePaymentFailed = 'invoice.payment_failed'
+}
 ```

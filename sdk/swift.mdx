@@ -1,7 +1,14 @@
 ---
 title: Swift SDK
-description: Complete guide for integrating PlugnPay with Swift and iOS applications
+description: Complete guide for integrating PlugnPay with Swift applications using modern concurrency patterns
 ---
+
+## Overview
+
+The plugnpay-swift SDK provides a secure, server-side interface for developers to integrate their Swift applications with the PlugnPay service. The library is built from the ground up using Swift's modern concurrency features (async/await) to offer a high-performance, non-blocking API. It leverages Swift's strong type system and Codable protocol for robust, safe, and easy-to-use data handling.
+
+**Requirements:** Swift 5.7+ (Swift Concurrency)
+**Distribution:** Swift Package Manager (SPM)
 
 ## Installation
 
@@ -11,102 +18,955 @@ Add the following to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/plugnpay/swift-sdk", from: "1.0.0")
+    .package(url: "https://github.com/plugnpay/plugnpay-swift", from: "1.0.0")
 ]
 ```
 
 Or add it through Xcode:
 1. File → Add Package Dependencies
-2. Enter: `https://github.com/plugnpay/swift-sdk`
+2. Enter: `https://github.com/plugnpay/plugnpay-swift`
 
 ### CocoaPods
 
 ```ruby
-pod 'PlugnPaySDK'
+pod 'PlugnPay'
 ```
 
 ### Carthage
 
 ```
-github "plugnpay/swift-sdk"
+github "plugnpay/plugnpay-swift"
 ```
 
-## Quick Start
+## Configuration & Initialization
 
-```swift
-import PlugnPaySDK
+The SDK client is an actor to ensure thread-safe access to its properties and methods. It is configured via an initializer that accepts a configuration object.
 
-let client = PlugnPay(
-    apiKey: ProcessInfo.processInfo.environment["PLUGNPAY_API_KEY"]!
-)
+### API Key Authentication
+
+Authentication is handled via an API key that can be configured in two ways:
+
+**Environment Variable (Recommended):**
+```bash
+export PLUGNPAY_API_KEY="pnp_sk_xxxxxx"
 ```
 
-## Core Operations
-
-### Creating Checkout Sessions
-
-Create secure checkout sessions for your customers:
-
+**Direct Configuration:**
 ```swift
-import PlugnPaySDK
+import PlugnPay
 
-let client = PlugnPay(
-    apiKey: ProcessInfo.processInfo.environment["PLUGNPAY_API_KEY"]!
-)
-
-// Async function
-func createCheckout() async throws {
-    let result = try await client.createCheckoutSession(
-        productId: "premium-plan",
-        customerId: "user_123"
-    )
+do {
+    // Preferred: Initialize by reading PLUGNPAY_API_KEY from the environment
+    // This initializer can throw an error if the key is not found
+    let client = try PlugnPayClient.fromEnvironment()
     
-    print(result.checkoutURL)
-    // Open this URL in a web view or Safari
+    // Alternatively, initialize with explicit config
+    let config = PlugnPayClient.Config(
+        apiKey: "pnp_sk_xxxxxx",
+    )
+    let clientWithOptions = try PlugnPayClient(config: config)
+} catch {
+    print("Failed to initialize PlugnPay client: \(error)")
 }
 ```
 
-### Checking Customer Access
-
-Verify if a customer has access to premium features:
+### Configuration Options
 
 ```swift
-func checkAccess() async throws {
-    let data = try await client.checkAccess(
-        customerId: "user_123",
-        featureId: "premium-features"
-    )
+public struct Config {
+    public let apiKey: String // API key for authentication
     
-    if data.hasAccess {
-        print("Customer has access")
-        print("Usage remaining: \(data.remaining)")
-    } else {
-        print("Access denied. Upgrade required.")
+    public init(apiKey: String) {
+        self.apiKey = apiKey
     }
 }
 ```
 
-### Usage Tracking
+## Core Methods
 
-Track feature usage and get analytics:
+All methods that interact with the REST API are async and throws, designed to be called with `try await`. Models are defined as struct types conforming to Codable for seamless JSON serialization.
+
+### getCustomer
+
+Retrieves or creates a customer record using "upsert" logic.
 
 ```swift
-func trackUsage() async throws {
-    // Track usage
-    try await client.track(
-        customerId: "user_123",
-        featureId: "ai-messages",
-        value: 1
+do {
+    let customer = try await client.getCustomer(email: "user@example.com")
+    print("Customer ID: \(customer.id)")
+} catch {
+    print("Failed to get customer: \(error)")
+}
+```
+
+**Method:** `func getCustomer(email: String) async throws -> Customer`
+
+**Returns:** `Customer` struct
+```swift
+public struct Customer: Codable {
+    public let id: String           // PlugnPay customer ID (e.g., "pnpc_xxxxxx")
+    public let email: String
+    public let stripeCustomerId: String
+    public let createdAt: String    // ISO 8601 timestamp
+}
+```
+
+### createCheckoutSession
+
+Generates a Stripe Checkout Session URL for customer purchases.
+
+```swift
+let request = CreateCheckoutSessionRequest(
+    customerId: "pnpc_xxxxxx",
+    productId: "premium-plan",
+    successUrl: "https://yourapp.com/success",
+    cancelUrl: "https://yourapp.com/cancel" // Optional
+)
+
+do {
+    let session = try await client.createCheckoutSession(with: request)
+    print("Checkout URL: \(session.url)")
+    // Open this URL in a web view or redirect user
+} catch {
+    print("Failed to create checkout session: \(error)")
+}
+```
+
+**Method:** `func createCheckoutSession(with request: CreateCheckoutSessionRequest) async throws -> CheckoutSession`
+
+**Input:**
+```swift
+public struct CreateCheckoutSessionRequest: Codable {
+    public let customerId: String
+    public let productId: String
+    public let successUrl: String
+    public let cancelUrl: String?
+    
+    public init(customerId: String, productId: String, successUrl: String, cancelUrl: String? = nil) {
+        self.customerId = customerId
+        self.productId = productId
+        self.successUrl = successUrl
+        self.cancelUrl = cancelUrl
+    }
+}
+```
+
+**Returns:** `CheckoutSession` struct
+```swift
+public struct CheckoutSession: Codable {
+    public let url: String
+}
+```
+
+### checkAccess
+
+Checks if a customer has access to a specific feature based on their active subscription.
+
+```swift
+do {
+    let access = try await client.checkAccess(
+        customerId: "pnpc_xxxxxx", 
+        featureId: "premium-features"
     )
     
-    // Get usage statistics
+    if access.hasAccess {
+        if let remaining = access.remaining {
+            print("Access granted! Remaining usage: \(remaining)")
+        } else {
+            print("Access granted! (unlimited)")
+        }
+    } else {
+        print("Access denied. Upgrade required.")
+    }
+} catch {
+    print("Failed to check access: \(error)")
+}
+```
+
+**Method:** `func checkAccess(customerId: String, featureId: String) async throws -> CheckAccessResponse`
+
+**Returns:** `CheckAccessResponse` struct
+```swift
+public struct CheckAccessResponse: Codable {
+    public let hasAccess: Bool
+    public let remaining: Int? // nil for non-metered features
+}
+```
+
+### trackUsage
+
+Reports usage for a metered feature. This action is idempotent.
+
+```swift
+let request = TrackUsageRequest(
+    customerId: "pnpc_xxxxxx",
+    featureId: "ai-messages",
+    value: 1,
+    idempotencyKey: "unique-key-123" // Optional
+)
+
+do {
+    let result = try await client.trackUsage(with: request)
+    print("Usage tracking success: \(result.success)")
+} catch {
+    print("Failed to track usage: \(error)")
+}
+```
+
+**Method:** `func trackUsage(with request: TrackUsageRequest) async throws -> TrackUsageResponse`
+
+**Input:**
+```swift
+public struct TrackUsageRequest: Codable {
+    public let customerId: String
+    public let featureId: String
+    public let value: Int
+    public let idempotencyKey: String?
+    
+    public init(customerId: String, featureId: String, value: Int, idempotencyKey: String? = nil) {
+        self.customerId = customerId
+        self.featureId = featureId
+        self.value = value
+        self.idempotencyKey = idempotencyKey
+    }
+}
+```
+
+**Returns:** `TrackUsageResponse` struct
+```swift
+public struct TrackUsageResponse: Codable {
+    public let success: Bool
+}
+```
+
+### getUsage
+
+Retrieves current usage details for a metered feature.
+
+```swift
+do {
     let usage = try await client.getUsage(
-        customerId: "user_123",
-        featureId: "ai-messages",
-        period: "month" // "day", "week", "month"
+        customerId: "pnpc_xxxxxx",
+        featureId: "ai-messages"
     )
     
-    print("Total usage: \(usage.total)")
-    print("Remaining: \(usage.remaining)")
+    print("Total usage: \(usage.totalUsage)")
+    if let remaining = usage.remaining {
+        print("Remaining: \(remaining)")
+    } else {
+        print("Remaining: unlimited")
+    }
+} catch {
+    print("Failed to get usage: \(error)")
+}
+```
+
+**Method:** `func getUsage(customerId: String, featureId: String) async throws -> GetUsageResponse`
+
+**Returns:** `GetUsageResponse` struct
+```swift
+public struct GetUsageResponse: Codable {
+    public let limit: Int?      // nil for unlimited
+    public let totalUsage: Int
+    public let remaining: Int?
+}
+```
+
+## Real-time Event Handling
+
+The SDK provides an AsyncThrowingStream interface for handling real-time events via Server-Sent Events (SSE). This is the standard, modern Swift pattern for handling a sequence of values and potential errors over time, integrating perfectly with async/await.
+
+### AsyncStream Interface
+
+The client provides a method that returns an AsyncThrowingStream.
+
+```swift
+let eventStream = client.listenForEvents()
+```
+
+**Method:** `func listenForEvents() -> AsyncThrowingStream<Event, Error>`
+
+**Behavior:**
+- The stream is "cold" — the SSE connection is only established when the stream is first iterated over (e.g., in a `for try await` loop)
+- The connection is automatically closed when the Task iterating over the stream is cancelled
+- Errors in the stream are thrown as Swift errors that can be caught with do-catch blocks
+
+### Event Structure
+
+The SDK uses an enum with associated values for event data payloads, providing compile-time type safety:
+
+```swift
+// Generic event wrapper
+public struct Event: Decodable {
+    public let eventId: String
+    public let eventType: String
+    public let createdAt: String
+    public let data: EventData
+}
+
+// Enum for type-safe event data
+public enum EventData: Decodable {
+    case subscription(SubscriptionEvent)
+    case invoice(InvoiceEvent)
+    case unknown // Fallback for future event types
+}
+
+// Payload models
+public struct SubscriptionEvent: Decodable {
+    public let customer: Customer
+    public let subscription: Subscription
+}
+
+public struct InvoiceEvent: Decodable {
+    public let customer: Customer
+    public let invoice: Invoice
+}
+```
+
+### Event Data Models
+
+```swift
+public struct Subscription: Codable {
+    public let id: String
+    public let stripeSubscriptionId: String
+    public let status: String // 'active', 'past_due', 'canceled', etc.
+    public let currentPeriodStart: String
+    public let currentPeriodEnd: String
+    public let productId: String
+}
+
+public struct Invoice: Codable {
+    public let id: String
+    public let stripeInvoiceId: String
+    public let status: String // 'paid', 'open', 'void', etc.
+    public let amountDue: Int      // In cents
+    public let amountPaid: Int     // In cents
+    public let currency: String
+    public let url: String?        // Hosted invoice URL from Stripe
+}
+```
+
+### Basic Event Listening
+
+```swift
+import PlugnPay
+import Foundation
+
+@main
+struct App {
+    static func main() async {
+        do {
+            let client = try PlugnPayClient.fromEnvironment()
+            print("Listening for PlugnPay events...")
+
+            let eventStream = client.listenForEvents()
+
+            for try await event in eventStream {
+                print("Received event: \(event.eventType)")
+                await handleEvent(event)
+            }
+        } catch {
+            // Catches setup errors or terminal stream errors
+            print("An error occurred: \(error)")
+        }
+    }
+    
+    static func handleEvent(_ event: Event) async {
+        switch event.data {
+        case .subscription(let payload):
+            print("Subscription event for \(payload.customer.email)")
+            switch event.eventType {
+            case "subscription.created":
+                print("New subscription created!")
+                // await provisionNewAccount(for: payload.customer.id)
+            case "subscription.updated":
+                print("Subscription updated: \(payload.subscription.status)")
+                // await updateUserPermissions(for: payload.customer.id, status: payload.subscription.status)
+            case "subscription.deleted":
+                print("Subscription cancelled")
+                // await revokeAccess(for: payload.customer.id)
+            default:
+                print("Unhandled subscription event: \(event.eventType)")
+            }
+            
+        case .invoice(let payload):
+            print("Invoice event for \(payload.customer.email)")
+            switch event.eventType {
+            case "invoice.payment.succeeded":
+                let amount = Double(payload.invoice.amountPaid) / 100.0 // Convert from cents
+                print("Payment of $\(amount) succeeded")
+                // await sendPaymentReceipt(to: payload.customer.email, invoiceUrl: payload.invoice.url)
+            case "invoice.payment.failed":
+                print("Payment failed")
+                // await sendPaymentFailedNotification(to: payload.customer.id, invoiceUrl: payload.invoice.url)
+            default:
+                print("Unhandled invoice event: \(event.eventType)")
+            }
+            
+        case .unknown:
+            print("Received an unknown event type: \(event.eventType)")
+        }
+    }
+}
+```
+
+### Advanced Event Handling with Structured Concurrency
+
+```swift
+import PlugnPay
+import Foundation
+
+actor PlugnPayEventHandler {
+    private let client: PlugnPayClient
+    private var eventTask: Task<Void, Error>?
+    
+    init(client: PlugnPayClient) {
+        self.client = client
+    }
+    
+    func start() {
+        // Cancel any existing event handling task
+        eventTask?.cancel()
+        
+        eventTask = Task {
+            do {
+                let eventStream = client.listenForEvents()
+                
+                for try await event in eventStream {
+                    // Process events concurrently but safely within the actor
+                    Task {
+                        await self.processEvent(event)
+                    }
+                }
+            } catch {
+                print("Event stream error: \(error)")
+                // Implement exponential backoff retry logic
+                try await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                await start() // Restart listening
+            }
+        }
+    }
+    
+    func stop() {
+        eventTask?.cancel()
+        eventTask = nil
+    }
+    
+    private func processEvent(_ event: Event) async {
+        do {
+            print("Processing event \(event.eventId): \(event.eventType)")
+            
+            switch event.data {
+            case .subscription(let data):
+                await handleSubscriptionEvent(event.eventType, data: data)
+            case .invoice(let data):
+                await handleInvoiceEvent(event.eventType, data: data)
+            case .unknown:
+                print("Unknown event type: \(event.eventType)")
+            }
+        } catch {
+            print("Error processing event \(event.eventId): \(error)")
+        }
+    }
+    
+    private func handleSubscriptionEvent(_ eventType: String, data: SubscriptionEvent) async {
+        switch eventType {
+        case "subscription.created":
+            print("New \(data.subscription.productId) subscription for \(data.customer.email)")
+            await provisionAccount(for: data.customer.id)
+            await sendWelcomeEmail(to: data.customer.email)
+        case "subscription.updated":
+            print("Subscription updated for \(data.customer.email): \(data.subscription.status)")
+            await updateUserPermissions(for: data.customer.id, status: data.subscription.status)
+        case "subscription.deleted":
+            print("Subscription cancelled for \(data.customer.email)")
+            await revokeAccess(for: data.customer.id)
+        default:
+            print("Unhandled subscription event: \(eventType)")
+        }
+    }
+    
+    private func handleInvoiceEvent(_ eventType: String, data: InvoiceEvent) async {
+        switch eventType {
+        case "invoice.payment.succeeded":
+            let amount = Double(data.invoice.amountPaid) / 100.0
+            print("Payment of $\(amount) succeeded for \(data.customer.email)")
+            await sendPaymentReceipt(to: data.customer.email, invoiceUrl: data.invoice.url)
+        case "invoice.payment.failed":
+            print("Payment failed for \(data.customer.email)")
+            await sendPaymentFailedNotification(to: data.customer.id, invoiceUrl: data.invoice.url)
+            await pauseServiceAccess(for: data.customer.id)
+        default:
+            print("Unhandled invoice event: \(eventType)")
+        }
+    }
+    
+    // Helper methods - implement according to your needs
+    private func provisionAccount(for customerId: String) async {
+        print("Provisioning account for customer \(customerId)")
+        // Implement account provisioning logic
+    }
+    
+    private func sendWelcomeEmail(to email: String) async {
+        print("Sending welcome email to \(email)")
+        // Implement welcome email sending
+    }
+    
+    private func updateUserPermissions(for customerId: String, status: String) async {
+        print("Updating permissions for customer \(customerId) to \(status)")
+        // Implement permission updates
+    }
+    
+    private func revokeAccess(for customerId: String) async {
+        print("Revoking access for customer \(customerId)")
+        // Implement access revocation
+    }
+    
+    private func sendPaymentReceipt(to email: String, invoiceUrl: String?) async {
+        print("Sending payment receipt to \(email)")
+        // Implement receipt sending
+    }
+    
+    private func sendPaymentFailedNotification(to customerId: String, invoiceUrl: String?) async {
+        print("Sending payment failed notification to customer \(customerId)")
+        // Implement payment failure notification
+    }
+    
+    private func pauseServiceAccess(for customerId: String) async {
+        print("Pausing service access for customer \(customerId)")
+        // Implement service access pausing
+    }
+}
+
+// Usage
+@main
+struct EventApp {
+    static func main() async {
+        do {
+            let client = try PlugnPayClient.fromEnvironment()
+            let eventHandler = PlugnPayEventHandler(client: client)
+            
+            await eventHandler.start()
+            
+            // Keep the application running
+            try await Task.sleep(nanoseconds: UInt64.max)
+            
+            // Graceful shutdown
+            await eventHandler.stop()
+        } catch {
+            print("Failed to start event handler: \(error)")
+        }
+    }
+}
+```
+
+## Error Handling
+
+The SDK uses Swift's native error handling with typed exceptions:
+
+```swift
+enum PlugnPayError: Error {
+    case invalidAPIKey
+    case networkError(Error)
+    case decodingError(Error)
+    case httpError(statusCode: Int, message: String)
+}
+
+// Usage with proper error handling
+do {
+    let customer = try await client.getCustomer(email: "test@example.com")
+    print("Customer: \(customer)")
+} catch let error as PlugnPayError {
+    switch error {
+    case .invalidAPIKey:
+        print("Invalid API key provided")
+    case .networkError(let underlyingError):
+        print("Network error: \(underlyingError)")
+    case .decodingError(let underlyingError):
+        print("Failed to decode response: \(underlyingError)")
+    case .httpError(let statusCode, let message):
+        print("HTTP error \(statusCode): \(message)")
+    }
+} catch {
+    print("Unexpected error: \(error)")
+}
+```
+
+## Complete Integration Example
+
+```swift
+import PlugnPay
+import Foundation
+
+class PlugnPayService {
+    private let client: PlugnPayClient
+    
+    init() throws {
+        self.client = try PlugnPayClient.fromEnvironment()
+    }
+    
+    func createCustomerAndCheckout(email: String, productId: String) async -> CheckoutResult {
+        do {
+            // Get or create customer
+            let customer = try await client.getCustomer(email: email)
+            print("Customer ID: \(customer.id)")
+            
+            // Create checkout session
+            let session = try await client.createCheckoutSession(
+                with: CreateCheckoutSessionRequest(
+                    customerId: customer.id,
+                    productId: productId,
+                    successUrl: "https://yourapp.com/success",
+                    cancelUrl: "https://yourapp.com/cancel"
+                )
+            )
+            
+            return .success(
+                customerId: customer.id,
+                checkoutUrl: session.url
+            )
+        } catch {
+            return .error("Checkout creation failed: \(error)")
+        }
+    }
+    
+    func checkUserAccess(customerId: String, featureId: String) async -> AccessResult {
+        do {
+            let access = try await client.checkAccess(
+                customerId: customerId,
+                featureId: featureId
+            )
+            
+            if access.hasAccess {
+                // Track usage for metered features
+                _ = try await client.trackUsage(
+                    with: TrackUsageRequest(
+                        customerId: customerId,
+                        featureId: featureId,
+                        value: 1
+                    )
+                )
+                
+                // Get updated usage stats
+                let usage = try await client.getUsage(
+                    customerId: customerId,
+                    featureId: featureId
+                )
+                
+                return .granted(
+                    usage: usage.totalUsage,
+                    remaining: usage.remaining
+                )
+            } else {
+                return .denied
+            }
+        } catch {
+            return .error("Access check failed: \(error)")
+        }
+    }
+}
+
+// Result types for better error handling
+enum CheckoutResult {
+    case success(customerId: String, checkoutUrl: String)
+    case error(String)
+}
+
+enum AccessResult {
+    case granted(usage: Int, remaining: Int?)
+    case denied
+    case error(String)
+}
+
+// Usage example
+@main
+struct IntegrationApp {
+    static func main() async {
+        do {
+            let plugnPayService = try PlugnPayService()
+            
+            // Create checkout for a customer
+            let checkoutResult = await plugnPayService.createCustomerAndCheckout(
+                email: "customer@example.com",
+                productId: "premium-plan"
+            )
+            
+            switch checkoutResult {
+            case .success(let customerId, let checkoutUrl):
+                print("Redirect to: \(checkoutUrl)")
+                
+                // Later, check if user has access to features
+                let accessResult = await plugnPayService.checkUserAccess(
+                    customerId: customerId,
+                    featureId: "premium-features"
+                )
+                
+                switch accessResult {
+                case .granted(let usage, let remaining):
+                    print("Feature access granted. Usage: \(usage)")
+                    if let remaining = remaining {
+                        print("Remaining: \(remaining)")
+                    }
+                case .denied:
+                    print("Upgrade required for this feature")
+                case .error(let message):
+                    print("Error: \(message)")
+                }
+                
+            case .error(let message):
+                print("Checkout failed: \(message)")
+            }
+        } catch {
+            print("Failed to initialize PlugnPay service: \(error)")
+        }
+    }
+}
+```
+
+## Vapor Integration
+
+For Vapor applications, you can integrate PlugnPay in your routes:
+
+```swift
+import PlugnPay
+import Vapor
+
+extension Application {
+    var plugnPay: PlugnPayClient {
+        get {
+            guard let client = storage[PlugnPayKey.self] else {
+                fatalError("PlugnPay client not configured")
+            }
+            return client
+        }
+        set {
+            storage[PlugnPayKey.self] = newValue
+        }
+    }
+}
+
+struct PlugnPayKey: StorageKey {
+    typealias Value = PlugnPayClient
+}
+
+// Configure PlugnPay
+func configure(_ app: Application) throws {
+    app.plugnPay = try PlugnPayClient.fromEnvironment()
+}
+
+// Route handlers
+func routes(_ app: Application) throws {
+    app.post("checkout") { req async throws -> CheckoutResponse in
+        let request = try req.content.decode(CheckoutRequest.self)
+        
+        let customer = try await app.plugnPay.getCustomer(email: request.email)
+        let session = try await app.plugnPay.createCheckoutSession(
+            with: CreateCheckoutSessionRequest(
+                customerId: customer.id,
+                productId: request.productId,
+                successUrl: request.successUrl,
+                cancelUrl: request.cancelUrl
+            )
+        )
+        
+        return CheckoutResponse(checkoutUrl: session.url)
+    }
+}
+
+struct CheckoutRequest: Content {
+    let email: String
+    let productId: String
+    let successUrl: String
+    let cancelUrl: String?
+}
+
+struct CheckoutResponse: Content {
+    let checkoutUrl: String
+}
+```
+
+## Perfect Integration
+
+For Perfect applications:
+
+```swift
+import PlugnPay
+import Perfect
+
+let client = try PlugnPayClient.fromEnvironment()
+
+let routes = Routes([
+    Route(method: .post, uri: "/checkout") { request, response in
+        // Handle checkout creation
+        do {
+            let customer = try await client.getCustomer(email: "customer@example.com")
+            let session = try await client.createCheckoutSession(
+                with: CreateCheckoutSessionRequest(
+                    customerId: customer.id,
+                    productId: "premium-plan",
+                    successUrl: "https://yourapp.com/success",
+                    cancelUrl: "https://yourapp.com/cancel"
+                )
+            )
+            
+            let json = ["checkout_url": session.url]
+            response.setHeader(.contentType, value: "application/json")
+            response.appendBody(string: try json.jsonEncodedString())
+        } catch {
+            response.status = .badRequest
+            response.appendBody(string: "Error: \(error)")
+        }
+        
+        response.completed()
+    }
+])
+```
+
+## Thread Safety and Actors
+
+The Swift SDK uses actors to ensure thread safety:
+
+```swift
+// The client is an actor, ensuring thread-safe access
+let client = try PlugnPayClient.fromEnvironment()
+
+// All calls are automatically synchronized
+Task {
+    let customer1 = try await client.getCustomer(email: "user1@example.com")
+    print("Customer 1: \(customer1.id)")
+}
+
+Task {
+    let customer2 = try await client.getCustomer(email: "user2@example.com")
+    print("Customer 2: \(customer2.id)")
+}
+
+// Both operations are safe to run concurrently
+```
+
+## iOS/macOS Specific Considerations
+
+### Background Tasks
+
+For iOS applications handling events:
+
+```swift
+import BackgroundTasks
+
+class AppDelegate: UIResponder, UIApplicationDelegate {
+    var eventHandler: PlugnPayEventHandler?
+    
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.yourapp.plugnpay-events", using: nil) { task in
+            self.handlePlugnPayEvents(task: task as! BGAppRefreshTask)
+        }
+        
+        return true
+    }
+    
+    func handlePlugnPayEvents(task: BGAppRefreshTask) {
+        let client = try! PlugnPayClient.fromEnvironment()
+        let handler = PlugnPayEventHandler(client: client)
+        self.eventHandler = handler
+        
+        task.expirationHandler = {
+            Task {
+                await handler.stop()
+            }
+            task.setTaskCompleted(success: false)
+        }
+        
+        Task {
+            await handler.start()
+            task.setTaskCompleted(success: true)
+        }
+    }
+}
+```
+
+### Network Connectivity
+
+Handle network availability:
+
+```swift
+import Network
+
+class NetworkMonitor {
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(label: "NetworkMonitor")
+    
+    func startMonitoring(client: PlugnPayClient) {
+        monitor.pathUpdateHandler = { [weak self] path in
+            if path.status == .satisfied {
+                print("Network available, can make PlugnPay requests")
+            } else {
+                print("Network unavailable")
+            }
+        }
+        
+        monitor.start(queue: queue)
+    }
+}
+```
+
+## Type Safety Features
+
+The Swift SDK leverages Swift's type system for better safety:
+
+```swift
+// Optional types are used appropriately
+struct CheckAccessResponse: Codable {
+    let hasAccess: Bool
+    let remaining: Int? // Explicitly optional for non-metered features
+}
+
+// Usage with nil-coalescing
+let remainingText = access.remaining.map(String.init) ?? "unlimited"
+
+// Enums provide exhaustive switching
+switch event.data {
+case .subscription(let subscriptionEvent):
+    handleSubscription(subscriptionEvent)
+case .invoice(let invoiceEvent):
+    handleInvoice(invoiceEvent)
+case .unknown:
+    handleUnknownEvent()
+}
+// Compiler ensures all cases are handled
+```
+
+## Testing
+
+The SDK is designed to be easily testable:
+
+```swift
+import XCTest
+@testable import PlugnPay
+
+class PlugnPayTests: XCTestCase {
+    var client: PlugnPayClient!
+    
+    override func setUpWithError() throws {
+        let config = PlugnPayClient.Config(apiKey: "test_key")
+        client = try PlugnPayClient(config: config)
+    }
+    
+    func testGetCustomer() async throws {
+        let customer = try await client.getCustomer(email: "test@example.com")
+        XCTAssertEqual(customer.email, "test@example.com")
+        XCTAssertFalse(customer.id.isEmpty)
+    }
+    
+    func testCheckoutSession() async throws {
+        let request = CreateCheckoutSessionRequest(
+            customerId: "test_customer",
+            productId: "test_product",
+            successUrl: "https://example.com/success"
+        )
+        
+        let session = try await client.createCheckoutSession(with: request)
+        XCTAssertTrue(session.url.hasPrefix("https://"))
+    }
 }
 ```

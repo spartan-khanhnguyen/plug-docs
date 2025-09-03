@@ -1,7 +1,13 @@
 ---
 title: Python SDK
-description: Complete guide for integrating PlugnPay with Python applications
+description: Complete guide for integrating PlugnPay with Python applications using async patterns
 ---
+
+## Overview
+
+The plugnpay-py SDK offers a secure, server-side interface for developers to integrate their Python applications with the PlugnPay service. It is built using modern asyncio patterns and provides methods for customer management, checkout sessions, feature entitlement, usage tracking, and a real-time event stream.
+
+**Requirements:** Python 3.8+
 
 ## Installation
 
@@ -9,69 +15,327 @@ description: Complete guide for integrating PlugnPay with Python applications
 pip install plugnpay
 ```
 
-## Quick Start
+## Configuration & Initialization
 
+The SDK is configured through environment variables and the client's constructor.
+
+### API Key Authentication
+
+Authentication is handled via an API key that can be configured in two ways:
+
+**Environment Variable (Recommended):**
+```bash
+export PLUGNPAY_API_KEY="pnp_sk_xxxxxx"
+```
+
+**Direct Configuration:**
 ```python
-from plugnpay import PlugnPay
 import os
+from plugnpay import PlugnPay
 
-client = PlugnPay(
-    api_key=os.environ["PLUGNPAY_API_KEY"]
+# Initializes by reading PLUGNPAY_API_KEY from the environment
+client = PlugnPay()
+
+# Alternatively, initialize with explicit options
+client_with_options = PlugnPay(
+    api_key="pnp_sk_xxxxxx",  # Overrides env var
 )
 ```
 
-## Core Operations
+## Core Methods
 
-### Creating Checkout Sessions
+All methods are async coroutines and must be called with `await`. They perform POST requests to the PlugnPay API with proper authentication and JSON content headers.
 
-Create secure checkout sessions for your customers:
+### get_customer
+
+Retrieves or creates a customer record (upsert logic).
 
 ```python
-result = client.create_checkout_session(
+customer = await client.get_customer(email="user@example.com")
+```
+
+**Input:**
+- `email` (str): Customer email address
+
+**Returns:** `Customer` object with:
+- `id` (str): PlugnPay customer ID (e.g., 'pnpc_xxxxxx')
+- `email` (str): Customer email
+- `stripe_customer_id` (str): Corresponding Stripe Customer ID
+- `created_at` (str): ISO 8601 timestamp
+
+### create_checkout_session
+
+Generates a Stripe Checkout Session URL for customer purchases.
+
+```python
+session = await client.create_checkout_session(
+    customer_id="pnpc_xxxxxx",
     product_id="premium-plan",
-    customer_id="user_123"
+    success_url="https://yourapp.com/success",
+    cancel_url="https://yourapp.com/cancel"  # Optional
 )
-
-print(result.checkout_url)
-# Redirect your customer to this URL
+print(f"Checkout URL: {session['url']}")
 ```
 
-### Checking Customer Access
+**Input:**
+- `customer_id` (str): PlugnPay customer ID
+- `product_id` (str): Product ID from your PlugnPay dashboard
+- `success_url` (str): URL to redirect after successful payment
+- `cancel_url` (str, optional): URL to redirect on cancellation
 
-Verify if a customer has access to premium features:
+**Returns:** `CheckoutSession` object with:
+- `url` (str): The Stripe Checkout URL
+
+### check_access
+
+Checks if a customer has access to a specific feature based on their active subscription.
 
 ```python
-data = client.check_access(
-    customer_id="user_123",
+access = await client.check_access(
+    customer_id="pnpc_xxxxxx",
     feature_id="premium-features"
 )
 
-if data.has_access:
-    print("Customer has access")
-    print(f"Usage remaining: {data.remaining}")
+if access["has_access"]:
+    print(f"Access granted! Remaining usage: {access['remaining']}")
 else:
     print("Access denied. Upgrade required.")
 ```
 
-### Usage Tracking
+**Input:**
+- `customer_id` (str): PlugnPay customer ID
+- `feature_id` (str): Feature identifier
 
-Track feature usage and get analytics:
+**Returns:** `CheckAccessResponse` object with:
+- `has_access` (bool): Whether customer has access
+- `remaining` (int | None): Remaining usage for metered features
+
+### track_usage
+
+Reports usage for a metered feature. This action is idempotent.
 
 ```python
-# Track usage
-client.track(
-    customer_id="user_123",
+result = await client.track_usage(
+    customer_id="pnpc_xxxxxx",
     feature_id="ai-messages",
-    value=1
+    value=1,
+    idempotency_key="unique-key-123"  # Optional
 )
+```
 
-# Get usage statistics
-usage = client.get_usage(
-    customer_id="user_123",
-    feature_id="ai-messages",
-    period="month"  # 'day', 'week', 'month'
+**Input:**
+- `customer_id` (str): PlugnPay customer ID
+- `feature_id` (str): Feature identifier
+- `value` (int): Usage amount to track
+- `idempotency_key` (str, optional): Prevents duplicate tracking
+
+**Returns:** `TrackUsageResponse` object with:
+- `success` (bool): Whether tracking was successful
+
+### get_usage
+
+Retrieves current usage details for a metered feature.
+
+```python
+usage = await client.get_usage(
+    customer_id="pnpc_xxxxxx",
+    feature_id="ai-messages"
 )
+print(f"Total usage: {usage['total_usage']}")
+print(f"Remaining: {usage['remaining']}")
+```
 
-print(f"Total usage: {usage.total}")
-print(f"Remaining: {usage.remaining}")
+**Input:**
+- `customer_id` (str): PlugnPay customer ID
+- `feature_id` (str): Feature identifier
+
+**Returns:** `GetUsageResponse` object with:
+- `limit` (int | None): Usage limit
+- `total_usage` (int): Current total usage
+- `remaining` (int | None): Remaining usage allowance
+
+## Real-time Event Handling
+
+The SDK provides an async generator interface for consuming real-time events via Server-Sent Events (SSE).
+
+### Basic Event Listening
+
+```python
+import asyncio
+from plugnpay import PlugnPay
+
+async def main():
+    client = PlugnPay()
+    print("Listening for PlugnPay events...")
+
+    try:
+        async for event in client.listen_for_events():
+            event_type = event["event_type"]
+            data = event["data"]
+            
+            print(f"Received event: {event_type}")
+            # Handle event based on type
+            
+    except Exception as e:
+        print(f"Error with event stream: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Event Types and Handling
+
+The event stream yields structured event objects with the following base format:
+
+```python
+{
+    "event_id": "evt_xxxxxx",
+    "event_type": "subscription.created",
+    "created_at": "2023-12-01T10:00:00Z",
+    "data": { ... }  # Event-specific payload
+}
+```
+
+### Complete Event Handling Example
+
+```python
+import asyncio
+from plugnpay import PlugnPay
+
+async def handle_subscription_events():
+    client = PlugnPay()
+    
+    async for event in client.listen_for_events():
+        event_type = event["event_type"]
+        data = event["data"]
+
+        if event_type == "subscription.created":
+            customer_email = data["customer"]["email"]
+            subscription_id = data["subscription"]["id"]
+            print(f"New subscription {subscription_id} for {customer_email}")
+            # Provision account, send welcome email, etc.
+            
+        elif event_type == "subscription.updated":
+            customer_email = data["customer"]["email"]
+            status = data["subscription"]["status"]
+            print(f"Subscription updated for {customer_email}: {status}")
+            # Update user permissions, handle status changes
+            
+        elif event_type == "subscription.deleted":
+            customer_email = data["customer"]["email"]
+            print(f"Subscription cancelled for {customer_email}")
+            # Revoke access, handle cancellation
+            
+        elif event_type == "invoice.payment.succeeded":
+            customer_email = data["customer"]["email"]
+            amount = data["invoice"]["amount_paid"]
+            print(f"Payment of ${amount/100} succeeded for {customer_email}")
+            # Extend service, send receipt
+            
+        elif event_type == "invoice.payment.failed":
+            customer_email = data["customer"]["email"]
+            invoice_url = data["invoice"]["url"]
+            print(f"Payment failed for {customer_email}")
+            # Send payment failure notification, pause service
+
+# Run the event handler
+asyncio.run(handle_subscription_events())
+```
+
+## Type Definitions
+
+The SDK uses `typing.TypedDict` for type safety and IDE support:
+
+```python
+from typing import TypedDict
+
+class Customer(TypedDict):
+    id: str
+    email: str
+    stripe_customer_id: str
+    created_at: str
+
+class CheckoutSession(TypedDict):
+    url: str
+
+class CheckAccessResponse(TypedDict):
+    has_access: bool
+    remaining: int | None
+
+class TrackUsageResponse(TypedDict):
+    success: bool
+
+class GetUsageResponse(TypedDict):
+    limit: int | None
+    total_usage: int
+    remaining: int | None
+```
+
+## Error Handling
+
+The SDK raises exceptions for various error conditions:
+
+```python
+import asyncio
+from plugnpay import PlugnPay, PlugnPayError
+
+async def handle_errors():
+    client = PlugnPay()
+    
+    try:
+        customer = await client.get_customer(email="test@example.com")
+    except PlugnPayError as e:
+        print(f"PlugnPay API error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+```
+
+## Complete Integration Example
+
+```python
+import asyncio
+import os
+from plugnpay import PlugnPay
+
+async def main():
+    # Initialize client
+    client = PlugnPay()
+    
+    # Create or get customer
+    customer = await client.get_customer(email="customer@example.com")
+    print(f"Customer ID: {customer['id']}")
+    
+    # Create checkout session
+    checkout = await client.create_checkout_session(
+        customer_id=customer["id"],
+        product_id="premium-plan",
+        success_url="https://yourapp.com/success",
+        cancel_url="https://yourapp.com/cancel"
+    )
+    
+    print(f"Checkout URL: {checkout['url']}")
+    
+    # Check access (after customer completes purchase)
+    access = await client.check_access(
+        customer_id=customer["id"],
+        feature_id="premium-features"
+    )
+    
+    if access["has_access"]:
+        # Track feature usage
+        await client.track_usage(
+            customer_id=customer["id"],
+            feature_id="api-calls",
+            value=1
+        )
+        
+        # Get usage stats
+        usage = await client.get_usage(
+            customer_id=customer["id"],
+            feature_id="api-calls"
+        )
+        print(f"API calls used: {usage['total_usage']}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```

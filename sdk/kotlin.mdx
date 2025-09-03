@@ -1,7 +1,13 @@
 ---
 title: Kotlin SDK
-description: Complete guide for integrating PlugnPay with Kotlin applications
+description: Complete guide for integrating PlugnPay with Kotlin applications using modern coroutines and type-safe patterns
 ---
+
+## Overview
+
+The plugnpay-kt SDK provides a secure, server-side interface for developers to integrate their Kotlin/JVM applications with the PlugnPay service. The library is built with Kotlin Coroutines for modern, non-blocking asynchronous operations and leverages Kotlin's type safety and nullability features to provide a robust developer experience. It is suitable for use in any JVM backend framework like Ktor, Spring Boot, or Micronaut.
+
+**Requirements:** JVM 11+ / Kotlin 1.9+
 
 ## Installation
 
@@ -9,7 +15,7 @@ description: Complete guide for integrating PlugnPay with Kotlin applications
 
 ```kotlin
 dependencies {
-    implementation("dev.plugnpay:sdk:1.0.0")
+    implementation("com.plugnpay:plugnpay-kt:1.0.0")
 }
 ```
 
@@ -17,7 +23,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'dev.plugnpay:sdk:1.0.0'
+    implementation 'com.plugnpay:plugnpay-kt:1.0.0'
 }
 ```
 
@@ -25,102 +31,730 @@ dependencies {
 
 ```xml
 <dependency>
-    <groupId>dev.plugnpay</groupId>
-    <artifactId>sdk</artifactId>
+    <groupId>com.plugnpay</groupId>
+    <artifactId>plugnpay-kt</artifactId>
     <version>1.0.0</version>
 </dependency>
 ```
 
-## Quick Start
+## Configuration & Initialization
+
+The SDK client is configured via a primary constructor that accepts a configuration object. A helper function is provided for easy initialization from environment variables.
+
+### API Key Authentication
+
+Authentication is handled via an API key that can be configured in two ways:
+
+**Environment Variable (Recommended):**
+```bash
+export PLUGNPAY_API_KEY="pnp_sk_xxxxxx"
+```
+
+**Direct Configuration:**
+```kotlin
+import com.plugnpay.sdk.PlugnPayClient
+import com.plugnpay.sdk.Config
+
+// Preferred: Initialize by reading PLUGNPAY_API_KEY from the environment
+val client = PlugnPayClient.fromEnv()
+
+// Alternatively, initialize with explicit config
+val config = Config(
+    apiKey = "pnp_sk_xxxxxx", // Required
+)
+val clientWithOptions = PlugnPayClient(config)
+```
+
+### Configuration Options
 
 ```kotlin
-import dev.plugnpay.sdk.PlugnPay
-
-val client = PlugnPay(
-    apiKey = System.getenv("PLUGNPAY_API_KEY")
+data class Config(
+    val apiKey: String, // API key for authentication
 )
 ```
 
-## Core Operations
+## Core Methods
 
-### Creating Checkout Sessions
+All methods that interact with the PlugnPay REST API are suspend functions, designed to be called from within a coroutine. They will throw a `PlugnPayException` (or a subclass) on failure. Models are defined using immutable data classes.
 
-Create secure checkout sessions for your customers:
+### getCustomer
+
+Retrieves or creates a customer record (upsert logic).
 
 ```kotlin
-import dev.plugnpay.sdk.PlugnPay
-import dev.plugnpay.sdk.models.CheckoutSessionRequest
+import kotlinx.coroutines.runBlocking
 
-val client = PlugnPay(
-    apiKey = System.getenv("PLUGNPAY_API_KEY")
-)
-
-// Suspending function - use within coroutine
-suspend fun createCheckout() {
-    val result = client.createCheckoutSession(
-        CheckoutSessionRequest(
-            productId = "premium-plan",
-            customerId = "user_123"
-        )
-    )
-    
-    println(result.checkoutUrl)
-    // Redirect your customer to this URL
+runBlocking {
+    val customer = client.getCustomer(email = "user@example.com")
+    println("Customer ID: ${customer.id}")
 }
 ```
 
-### Checking Customer Access
+**Method:** `suspend fun getCustomer(email: String): Customer`
 
-Verify if a customer has access to premium features:
+**Returns:** `Customer` data class
+```kotlin
+data class Customer(
+    val id: String, // PlugnPay customer ID (e.g., "pnpc_xxxxxx")
+    val email: String,
+    val stripeCustomerId: String,
+    val createdAt: String // ISO 8601 timestamp
+)
+```
+
+### createCheckoutSession
+
+Generates a Stripe Checkout Session URL for customer purchases.
 
 ```kotlin
-import dev.plugnpay.sdk.models.AccessRequest
-
-suspend fun checkAccess() {
-    val data = client.checkAccess(
-        AccessRequest(
-            customerId = "user_123",
-            featureId = "premium-features"
-        )
+runBlocking {
+    val request = CreateCheckoutSessionRequest(
+        customerId = "pnpc_xxxxxx",
+        productId = "premium-plan",
+        successUrl = "https://yourapp.com/success",
+        cancelUrl = "https://yourapp.com/cancel" // Optional
     )
     
-    if (data.hasAccess) {
-        println("Customer has access")
-        println("Usage remaining: ${data.remaining}")
+    val session = client.createCheckoutSession(request)
+    println("Checkout URL: ${session.url}")
+}
+```
+
+**Method:** `suspend fun createCheckoutSession(request: CreateCheckoutSessionRequest): CheckoutSession`
+
+**Input:**
+```kotlin
+data class CreateCheckoutSessionRequest(
+    val customerId: String,
+    val productId: String,
+    val successUrl: String,
+    val cancelUrl: String? = null
+)
+```
+
+**Returns:** `CheckoutSession` data class
+```kotlin
+data class CheckoutSession(
+    val url: String
+)
+```
+
+### checkAccess
+
+Checks if a customer has access to a specific feature based on their active subscription.
+
+```kotlin
+runBlocking {
+    val access = client.checkAccess(
+        customerId = "pnpc_xxxxxx",
+        featureId = "premium-features"
+    )
+    
+    if (access.hasAccess) {
+        access.remaining?.let { remaining ->
+            println("Access granted! Remaining usage: $remaining")
+        } ?: println("Access granted! (unlimited)")
     } else {
         println("Access denied. Upgrade required.")
     }
 }
 ```
 
-### Usage Tracking
+**Method:** `suspend fun checkAccess(customerId: String, featureId: String): CheckAccessResponse`
 
-Track feature usage and get analytics:
+**Returns:** `CheckAccessResponse` data class
+```kotlin
+data class CheckAccessResponse(
+    val hasAccess: Boolean,
+    val remaining: Long? // Null for non-metered features
+)
+```
+
+### trackUsage
+
+Reports usage for a metered feature. This action is idempotent.
 
 ```kotlin
-import dev.plugnpay.sdk.models.TrackRequest
-import dev.plugnpay.sdk.models.UsageRequest
+runBlocking {
+    val request = TrackUsageRequest(
+        customerId = "pnpc_xxxxxx",
+        featureId = "ai-messages",
+        value = 1L,
+        idempotencyKey = "unique-key-123" // Optional
+    )
+    
+    val result = client.trackUsage(request)
+    println("Usage tracking success: ${result.success}")
+}
+```
 
-suspend fun trackUsage() {
-    // Track usage
-    client.track(
-        TrackRequest(
-            customerId = "user_123",
-            featureId = "ai-messages",
-            value = 1
-        )
-    )
-    
-    // Get usage statistics
+**Method:** `suspend fun trackUsage(request: TrackUsageRequest): TrackUsageResponse`
+
+**Input:**
+```kotlin
+data class TrackUsageRequest(
+    val customerId: String,
+    val featureId: String,
+    val value: Long,
+    val idempotencyKey: String? = null
+)
+```
+
+**Returns:** `TrackUsageResponse` data class
+```kotlin
+data class TrackUsageResponse(
+    val success: Boolean
+)
+```
+
+### getUsage
+
+Retrieves current usage details for a metered feature.
+
+```kotlin
+runBlocking {
     val usage = client.getUsage(
-        UsageRequest(
-            customerId = "user_123",
-            featureId = "ai-messages",
-            period = "month" // 'day', 'week', 'month'
-        )
+        customerId = "pnpc_xxxxxx",
+        featureId = "ai-messages"
     )
     
-    println("Total usage: ${usage.total}")
-    println("Remaining: ${usage.remaining}")
+    println("Total usage: ${usage.totalUsage}")
+    usage.remaining?.let { remaining ->
+        println("Remaining: $remaining")
+    } ?: println("Remaining: unlimited")
+}
+```
+
+**Method:** `suspend fun getUsage(customerId: String, featureId: String): GetUsageResponse`
+
+**Returns:** `GetUsageResponse` data class
+```kotlin
+data class GetUsageResponse(
+    val limit: Long?, // Null for unlimited
+    val totalUsage: Long,
+    val remaining: Long?
+)
+```
+
+## Real-time Event Handling
+
+The SDK provides a Flow-based interface for handling real-time events via Server-Sent Events (SSE). This provides a cold, asynchronous stream of events that integrates seamlessly with coroutines and structured concurrency.
+
+### Flow-Based Interface
+
+The client provides a method that returns a Flow of events.
+
+```kotlin
+val eventFlow = client.listenForEvents()
+```
+
+**Method:** `fun listenForEvents(): Flow<Event>`
+
+**Behavior:** 
+- The Flow is cold; the SSE connection is only established when a terminal operator (like `collect`) is called
+- The connection is automatically torn down when the collecting coroutine's scope is cancelled
+- Errors in the stream will be thrown as exceptions within the flow, which can be handled with the `.catch` operator
+
+### Event Structure
+
+The SDK uses a sealed class hierarchy for event data to provide maximum type safety when processing events:
+
+```kotlin
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+// Generic event wrapper
+@Serializable
+data class Event(
+    @SerialName("event_id") val eventId: String,
+    @SerialName("event_type") val eventType: String,
+    @SerialName("created_at") val createdAt: String,
+    val data: EventData
+)
+
+// Sealed class for type-safe event data
+@Serializable
+sealed class EventData {
+    @Serializable
+    @SerialName("subscription_event")
+    data class SubscriptionEvent(
+        val customer: Customer, 
+        val subscription: Subscription
+    ) : EventData()
+
+    @Serializable
+    @SerialName("invoice_event")
+    data class InvoiceEvent(
+        val customer: Customer, 
+        val invoice: Invoice
+    ) : EventData()
+}
+```
+
+### Event Data Models
+
+```kotlin
+@Serializable
+data class Subscription(
+    val id: String,
+    @SerialName("stripe_subscription_id") val stripeSubscriptionId: String,
+    val status: String, // 'active', 'past_due', 'canceled', etc.
+    @SerialName("current_period_start") val currentPeriodStart: String,
+    @SerialName("current_period_end") val currentPeriodEnd: String,
+    @SerialName("product_id") val productId: String
+)
+
+@Serializable
+data class Invoice(
+    val id: String,
+    @SerialName("stripe_invoice_id") val stripeInvoiceId: String,
+    val status: String, // 'paid', 'open', 'void', etc.
+    @SerialName("amount_due") val amountDue: Long, // In cents
+    @SerialName("amount_paid") val amountPaid: Long, // In cents
+    val currency: String,
+    val url: String? // Hosted invoice URL from Stripe
+)
+```
+
+### Basic Event Listening
+
+```kotlin
+import com.plugnpay.sdk.PlugnPayClient
+import com.plugnpay.sdk.EventData
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+
+fun main() = runBlocking {
+    val client = PlugnPayClient.fromEnv()
+    println("Listening for PlugnPay events...")
+
+    val job = launch {
+        client.listenForEvents()
+            .catch { e -> 
+                // Handle connection errors or parsing exceptions
+                println("Error in event stream: ${e.message}") 
+            }
+            .collect { event ->
+                println("Received event: ${event.eventType}")
+                handleEvent(event)
+            }
+    }
+
+    // The flow will be collected until the parent scope is cancelled
+    // job.join() // Uncomment to wait for completion
+}
+
+fun handleEvent(event: Event) {
+    when (val data = event.data) {
+        is EventData.SubscriptionEvent -> {
+            println("Subscription event for ${data.customer.email}")
+            when (event.eventType) {
+                "subscription.created" -> {
+                    println("New subscription created!")
+                    // provisionNewAccount(data.customer.id)
+                }
+                "subscription.updated" -> {
+                    println("Subscription updated: ${data.subscription.status}")
+                    // updateUserPermissions(data.customer.id, data.subscription.status)
+                }
+                "subscription.deleted" -> {
+                    println("Subscription cancelled")
+                    // revokeAccess(data.customer.id)
+                }
+            }
+        }
+        is EventData.InvoiceEvent -> {
+            println("Invoice event for ${data.customer.email}")
+            when (event.eventType) {
+                "invoice.payment.succeeded" -> {
+                    val amount = data.invoice.amountPaid / 100.0 // Convert from cents
+                    println("Payment of $${amount} succeeded")
+                    // sendPaymentReceipt(data.customer.email, data.invoice.url)
+                }
+                "invoice.payment.failed" -> {
+                    println("Payment failed")
+                    // sendPaymentFailedNotification(data.customer.id, data.invoice.url)
+                }
+            }
+        }
+    }
+}
+```
+
+### Advanced Event Handling with Structured Concurrency
+
+```kotlin
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+
+class PlugnPayEventHandler(private val client: PlugnPayClient) {
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    
+    fun start() {
+        scope.launch {
+            client.listenForEvents()
+                .flowOn(Dispatchers.IO) // Handle network I/O on IO dispatcher
+                .catch { exception ->
+                    println("Event stream error: ${exception.message}")
+                    // Implement retry logic with exponential backoff
+                    delay(5000)
+                    start() // Restart listening
+                }
+                .collect { event ->
+                    // Process each event in a separate coroutine for concurrency
+                    launch { 
+                        processEvent(event) 
+                    }
+                }
+        }
+    }
+    
+    fun stop() {
+        scope.cancel()
+    }
+    
+    private suspend fun processEvent(event: Event) {
+        try {
+            println("Processing event ${event.eventId}: ${event.eventType}")
+            
+            when (val data = event.data) {
+                is EventData.SubscriptionEvent -> handleSubscriptionEvent(event.eventType, data)
+                is EventData.InvoiceEvent -> handleInvoiceEvent(event.eventType, data)
+            }
+        } catch (e: Exception) {
+            println("Error processing event ${event.eventId}: ${e.message}")
+            // Log error, send to monitoring system, etc.
+        }
+    }
+    
+    private suspend fun handleSubscriptionEvent(eventType: String, data: EventData.SubscriptionEvent) {
+        when (eventType) {
+            "subscription.created" -> {
+                println("New ${data.subscription.productId} subscription for ${data.customer.email}")
+                provisionAccount(data.customer.id)
+                sendWelcomeEmail(data.customer.email)
+            }
+            "subscription.updated" -> {
+                println("Subscription updated for ${data.customer.email}: ${data.subscription.status}")
+                updateUserPermissions(data.customer.id, data.subscription.status)
+            }
+            "subscription.deleted" -> {
+                println("Subscription cancelled for ${data.customer.email}")
+                revokeAccess(data.customer.id)
+            }
+        }
+    }
+    
+    private suspend fun handleInvoiceEvent(eventType: String, data: EventData.InvoiceEvent) {
+        when (eventType) {
+            "invoice.payment.succeeded" -> {
+                val amount = data.invoice.amountPaid / 100.0
+                println("Payment of $${amount} succeeded for ${data.customer.email}")
+                sendPaymentReceipt(data.customer.email, data.invoice.url)
+            }
+            "invoice.payment.failed" -> {
+                println("Payment failed for ${data.customer.email}")
+                sendPaymentFailedNotification(data.customer.id, data.invoice.url)
+                pauseServiceAccess(data.customer.id)
+            }
+        }
+    }
+    
+    // Helper methods - implement according to your needs
+    private suspend fun provisionAccount(customerId: String) {
+        println("Provisioning account for customer $customerId")
+        // Implement account provisioning logic
+    }
+    
+    private suspend fun sendWelcomeEmail(email: String) {
+        println("Sending welcome email to $email")
+        // Implement welcome email sending
+    }
+    
+    private suspend fun updateUserPermissions(customerId: String, status: String) {
+        println("Updating permissions for customer $customerId to $status")
+        // Implement permission updates
+    }
+    
+    private suspend fun revokeAccess(customerId: String) {
+        println("Revoking access for customer $customerId")
+        // Implement access revocation
+    }
+    
+    private suspend fun sendPaymentReceipt(email: String, invoiceUrl: String?) {
+        println("Sending payment receipt to $email")
+        // Implement receipt sending
+    }
+    
+    private suspend fun sendPaymentFailedNotification(customerId: String, invoiceUrl: String?) {
+        println("Sending payment failed notification to customer $customerId")
+        // Implement payment failure notification
+    }
+    
+    private suspend fun pauseServiceAccess(customerId: String) {
+        println("Pausing service access for customer $customerId")
+        // Implement service access pausing
+    }
+}
+
+// Usage
+fun main() = runBlocking {
+    val client = PlugnPayClient.fromEnv()
+    val eventHandler = PlugnPayEventHandler(client)
+    
+    eventHandler.start()
+    
+    // Keep the application running
+    delay(Long.MAX_VALUE)
+    
+    // Graceful shutdown
+    eventHandler.stop()
+}
+```
+
+## Error Handling
+
+The SDK throws typed exceptions for various error conditions:
+
+```kotlin
+import com.plugnpay.sdk.PlugnPayException
+import kotlinx.coroutines.runBlocking
+
+runBlocking {
+    try {
+        val customer = client.getCustomer(email = "test@example.com")
+        println("Customer: $customer")
+    } catch (e: PlugnPayException) {
+        println("PlugnPay API error: ${e.message}")
+        println("Status code: ${e.statusCode}")
+        println("Error code: ${e.errorCode}")
+    } catch (e: Exception) {
+        println("Unexpected error: ${e.message}")
+    }
+}
+```
+
+## Complete Integration Example
+
+```kotlin
+import com.plugnpay.sdk.*
+import kotlinx.coroutines.*
+
+class PlugnPayService {
+    private val client = PlugnPayClient.fromEnv()
+    
+    suspend fun createCustomerAndCheckout(email: String, productId: String): CheckoutResult {
+        return try {
+            // Get or create customer
+            val customer = client.getCustomer(email)
+            println("Customer ID: ${customer.id}")
+            
+            // Create checkout session
+            val session = client.createCheckoutSession(
+                CreateCheckoutSessionRequest(
+                    customerId = customer.id,
+                    productId = productId,
+                    successUrl = "https://yourapp.com/success",
+                    cancelUrl = "https://yourapp.com/cancel"
+                )
+            )
+            
+            CheckoutResult.Success(
+                customerId = customer.id,
+                checkoutUrl = session.url
+            )
+        } catch (e: PlugnPayException) {
+            CheckoutResult.Error("Checkout creation failed: ${e.message}")
+        }
+    }
+    
+    suspend fun checkUserAccess(customerId: String, featureId: String): AccessResult {
+        return try {
+            val access = client.checkAccess(customerId, featureId)
+            
+            if (access.hasAccess) {
+                // Track usage for metered features
+                client.trackUsage(
+                    TrackUsageRequest(
+                        customerId = customerId,
+                        featureId = featureId,
+                        value = 1L
+                    )
+                )
+                
+                // Get updated usage stats
+                val usage = client.getUsage(customerId, featureId)
+                
+                AccessResult.Granted(
+                    usage = usage.totalUsage,
+                    remaining = usage.remaining
+                )
+            } else {
+                AccessResult.Denied
+            }
+        } catch (e: PlugnPayException) {
+            AccessResult.Error("Access check failed: ${e.message}")
+        }
+    }
+}
+
+// Result types for better error handling
+sealed class CheckoutResult {
+    data class Success(val customerId: String, val checkoutUrl: String) : CheckoutResult()
+    data class Error(val message: String) : CheckoutResult()
+}
+
+sealed class AccessResult {
+    data class Granted(val usage: Long, val remaining: Long?) : AccessResult()
+    object Denied : AccessResult()
+    data class Error(val message: String) : AccessResult()
+}
+
+// Usage example
+fun main() = runBlocking {
+    val plugnPayService = PlugnPayService()
+    
+    // Create checkout for a customer
+    val checkoutResult = plugnPayService.createCustomerAndCheckout(
+        email = "customer@example.com",
+        productId = "premium-plan"
+    )
+    
+    when (checkoutResult) {
+        is CheckoutResult.Success -> {
+            println("Redirect to: ${checkoutResult.checkoutUrl}")
+            
+            // Later, check if user has access to features
+            val accessResult = plugnPayService.checkUserAccess(
+                customerId = checkoutResult.customerId,
+                featureId = "premium-features"
+            )
+            
+            when (accessResult) {
+                is AccessResult.Granted -> {
+                    println("Feature access granted. Usage: ${accessResult.usage}")
+                    accessResult.remaining?.let { remaining ->
+                        println("Remaining: $remaining")
+                    }
+                }
+                is AccessResult.Denied -> {
+                    println("Upgrade required for this feature")
+                }
+                is AccessResult.Error -> {
+                    println("Error: ${accessResult.message}")
+                }
+            }
+        }
+        is CheckoutResult.Error -> {
+            println("Checkout failed: ${checkoutResult.message}")
+        }
+    }
+}
+```
+
+## Spring Boot Integration
+
+For Spring Boot applications, you can create a configuration class:
+
+```kotlin
+import com.plugnpay.sdk.PlugnPayClient
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.ConstructorBinding
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+
+@Configuration
+class PlugnPayConfiguration {
+    
+    @Bean
+    fun plugnPayClient(properties: PlugnPayProperties): PlugnPayClient {
+        return PlugnPayClient(
+            Config(
+                apiKey = properties.apiKey,
+                apiUrl = properties.apiUrl
+            )
+        )
+    }
+}
+
+@ConstructorBinding
+@ConfigurationProperties(prefix = "plugnpay")
+data class PlugnPayProperties(
+    val apiKey: String,
+    val apiUrl: String = "https://api.plugnpay.com"
+)
+```
+
+Then in your `application.yml`:
+
+```yaml
+plugnpay:
+  api-key: ${PLUGNPAY_API_KEY}
+  api-url: https://api.plugnpay.com
+```
+
+## Ktor Integration
+
+For Ktor applications, you can integrate PlugnPay in your routing:
+
+```kotlin
+import com.plugnpay.sdk.PlugnPayClient
+import io.ktor.application.*
+import io.ktor.response.*
+import io.ktor.routing.*
+
+fun Application.configureRouting() {
+    val plugnPayClient = PlugnPayClient.fromEnv()
+    
+    routing {
+        post("/checkout") {
+            try {
+                val customer = plugnPayClient.getCustomer("customer@example.com")
+                val session = plugnPayClient.createCheckoutSession(
+                    CreateCheckoutSessionRequest(
+                        customerId = customer.id,
+                        productId = "premium-plan",
+                        successUrl = "https://yourapp.com/success",
+                        cancelUrl = "https://yourapp.com/cancel"
+                    )
+                )
+                call.respond(mapOf("checkout_url" to session.url))
+            } catch (e: PlugnPayException) {
+                call.respond(HttpStatusCode.BadRequest, mapOf("error" to e.message))
+            }
+        }
+    }
+}
+```
+
+## Type Safety and Nullability
+
+The Kotlin SDK leverages Kotlin's type system for better safety:
+
+```kotlin
+// Nullable types are explicitly marked
+data class CheckAccessResponse(
+    val hasAccess: Boolean,
+    val remaining: Long? // Explicitly nullable for non-metered features
+)
+
+// Usage with safe calls
+access.remaining?.let { remaining ->
+    println("Remaining: $remaining")
+} ?: println("Unlimited access")
+
+// Or with Elvis operator
+val remainingText = access.remaining?.toString() ?: "unlimited"
+```
+
+The SDK uses sealed classes for exhaustive when expressions:
+
+```kotlin
+when (val data = event.data) {
+    is EventData.SubscriptionEvent -> handleSubscription(data)
+    is EventData.InvoiceEvent -> handleInvoice(data)
+    // Compiler ensures all cases are handled
 }
 ```

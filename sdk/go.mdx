@@ -1,110 +1,771 @@
 ---
 title: Go SDK
-description: Complete guide for integrating PlugnPay with Go applications
+description: Complete guide for integrating PlugnPay with Go applications using idiomatic patterns
 ---
+
+## Overview
+
+The plugnpay-go SDK provides a secure, server-side interface for developers to integrate their Go applications with the PlugnPay service. It is designed to be idiomatic Go, with a focus on static typing, explicit error handling, and concurrency-safe patterns for handling API requests and real-time event streams. All network-bound methods accept a `context.Context` for cancellation and deadline propagation.
+
+**Requirements:** Go 1.21+
 
 ## Installation
 
 ```bash
-go get github.com/plugnpay/go-sdk
+go get github.com/plugnpay/plugnpay-go
 ```
 
-## Quick Start
+## Configuration & Initialization
 
+The SDK client is configured via a constructor function that accepts an optional configuration struct.
+
+### API Key Authentication
+
+Authentication is handled via an API key that can be configured in two ways:
+
+**Environment Variable (Recommended):**
+```bash
+export PLUGNPAY_API_KEY="pnp_sk_xxxxxx"
+```
+
+**Direct Configuration:**
 ```go
 package main
 
 import (
-    "github.com/plugnpay/go-sdk"
-    "os"
+    "log"
+    "github.com/plugnpay/plugnpay-go"
 )
 
 func main() {
-    client := plugnpay.New(os.Getenv("PLUGNPAY_API_KEY"))
-}
-```
-
-## Core Operations
-
-### Creating Checkout Sessions
-
-Create secure checkout sessions for your customers:
-
-```go
-package main
-
-import (
-    "github.com/plugnpay/go-sdk"
-    "fmt"
-    "os"
-)
-
-func main() {
-    client := plugnpay.New(os.Getenv("PLUGNPAY_API_KEY"))
-    
-    result, err := client.CreateCheckoutSession(&plugnpay.CheckoutSessionRequest{
-        ProductID:   "premium-plan",
-        CustomerID:  "user_123",
-    })
-    
+    // Initializes by reading PLUGNPAY_API_KEY from the environment
+    client, err := plugnpay.NewClient(nil)
     if err != nil {
-        panic(err)
+        log.Fatalf("Failed to create client: %v", err)
     }
-    
-    fmt.Println(result.CheckoutURL)
-    // Redirect your customer to this URL
+
+    // Alternatively, initialize with explicit config
+    cfg := &plugnpay.Config{
+        APIKey: "pnp_sk_xxxxxx", // Overrides env var
+    }
+    clientWithOptions, err := plugnpay.NewClient(cfg)
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+    }
 }
 ```
 
-### Checking Customer Access
-
-Verify if a customer has access to premium features:
+### Configuration Options
 
 ```go
-data, err := client.CheckAccess(&plugnpay.AccessRequest{
-    CustomerID: "user_123",
+type Config struct {
+    APIKey string // API key for authentication
+}
+```
+
+## Core Methods
+
+All methods are defined on the `*Client` type. They perform POST requests and return a result struct pointer and an error, adhering to standard Go error handling. All methods accept a `context.Context` for cancellation and timeout control.
+
+### GetCustomer
+
+Retrieves or creates a customer record (upsert logic).
+
+```go
+ctx := context.Background()
+customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+    Email: "user@example.com",
+})
+if err != nil {
+    log.Fatalf("Failed to get customer: %v", err)
+}
+fmt.Printf("Customer ID: %s\n", customer.ID)
+```
+
+**Input:**
+```go
+type GetCustomerArgs struct {
+    Email string `json:"email"`
+}
+```
+
+**Returns:** `(*Customer, error)`
+```go
+type Customer struct {
+    ID               string `json:"id"`                // PlugnPay customer ID (e.g., 'pnpc_xxxxxx')
+    Email            string `json:"email"`
+    StripeCustomerID string `json:"stripe_customer_id"` // Corresponding Stripe Customer ID
+    CreatedAt        string `json:"created_at"`         // ISO 8601 timestamp
+}
+```
+
+### CreateCheckoutSession
+
+Generates a Stripe Checkout Session URL for customer purchases.
+
+```go
+ctx := context.Background()
+session, err := client.CreateCheckoutSession(ctx, plugnpay.CreateCheckoutSessionArgs{
+    CustomerID: "pnpc_xxxxxx",
+    ProductID:  "premium-plan",
+    SuccessURL: "https://yourapp.com/success",
+    CancelURL:  "https://yourapp.com/cancel", // Optional
+})
+if err != nil {
+    log.Fatalf("Failed to create checkout session: %v", err)
+}
+fmt.Printf("Checkout URL: %s\n", session.URL)
+```
+
+**Input:**
+```go
+type CreateCheckoutSessionArgs struct {
+    CustomerID string `json:"customer_id"`
+    ProductID  string `json:"product_id"`
+    SuccessURL string `json:"success_url"`
+    CancelURL  string `json:"cancel_url,omitempty"` // Optional
+}
+```
+
+**Returns:** `(*CheckoutSession, error)`
+```go
+type CheckoutSession struct {
+    URL string `json:"url"` // The Stripe Checkout URL
+}
+```
+
+### CheckAccess
+
+Checks if a customer has access to a specific feature based on their active subscription.
+
+```go
+ctx := context.Background()
+access, err := client.CheckAccess(ctx, plugnpay.CheckAccessArgs{
+    CustomerID: "pnpc_xxxxxx",
     FeatureID:  "premium-features",
 })
-
 if err != nil {
-    panic(err)
+    log.Fatalf("Failed to check access: %v", err)
 }
 
-if data.HasAccess {
-    fmt.Println("Customer has access")
-    fmt.Printf("Usage remaining: %d\n", data.Remaining)
+if access.HasAccess {
+    if access.Remaining != nil {
+        fmt.Printf("Access granted! Remaining usage: %d\n", *access.Remaining)
+    } else {
+        fmt.Println("Access granted! (unlimited)")
+    }
 } else {
     fmt.Println("Access denied. Upgrade required.")
 }
 ```
 
-### Usage Tracking
+**Input:**
+```go
+type CheckAccessArgs struct {
+    CustomerID string `json:"customer_id"`
+    FeatureID  string `json:"feature_id"`
+}
+```
 
-Track feature usage and get analytics:
+**Returns:** `(*CheckAccessResponse, error)`
+```go
+type CheckAccessResponse struct {
+    HasAccess bool   `json:"has_access"`
+    Remaining *int64 `json:"remaining"` // Pointer to handle null for non-metered features
+}
+```
+
+### TrackUsage
+
+Reports usage for a metered feature. This action is idempotent.
 
 ```go
-// Track usage
-err := client.Track(&plugnpay.TrackRequest{
-    CustomerID: "user_123",
-    FeatureID:  "ai-messages",
-    Value:      1,
+ctx := context.Background()
+result, err := client.TrackUsage(ctx, plugnpay.TrackUsageArgs{
+    CustomerID:     "pnpc_xxxxxx",
+    FeatureID:      "ai-messages",
+    Value:          1,
+    IdempotencyKey: "unique-key-123", // Optional
 })
-
 if err != nil {
-    panic(err)
+    log.Fatalf("Failed to track usage: %v", err)
+}
+fmt.Printf("Usage tracking success: %t\n", result.Success)
+```
+
+**Input:**
+```go
+type TrackUsageArgs struct {
+    CustomerID     string `json:"customer_id"`
+    FeatureID      string `json:"feature_id"`
+    Value          int64  `json:"value"`
+    IdempotencyKey string `json:"idempotency_key,omitempty"` // Optional
+}
+```
+
+**Returns:** `(*TrackUsageResponse, error)`
+```go
+type TrackUsageResponse struct {
+    Success bool `json:"success"`
+}
+```
+
+### GetUsage
+
+Retrieves current usage details for a metered feature.
+
+```go
+ctx := context.Background()
+usage, err := client.GetUsage(ctx, plugnpay.GetUsageArgs{
+    CustomerID: "pnpc_xxxxxx",
+    FeatureID:  "ai-messages",
+})
+if err != nil {
+    log.Fatalf("Failed to get usage: %v", err)
 }
 
-// Get usage statistics
-usage, err := client.GetUsage(&plugnpay.UsageRequest{
-    CustomerID: "user_123",
-    FeatureID:  "ai-messages",
-    Period:     "month", // 'day', 'week', 'month'
-})
+fmt.Printf("Total usage: %d\n", usage.TotalUsage)
+if usage.Remaining != nil {
+    fmt.Printf("Remaining: %d\n", *usage.Remaining)
+} else {
+    fmt.Println("Remaining: unlimited")
+}
+```
 
-if err != nil {
-    panic(err)
+**Input:**
+```go
+type GetUsageArgs struct {
+    CustomerID string `json:"customer_id"`
+    FeatureID  string `json:"feature_id"`
+}
+```
+
+**Returns:** `(*GetUsageResponse, error)`
+```go
+type GetUsageResponse struct {
+    Limit      *int64 `json:"limit"`       // Pointer to handle null for unlimited
+    TotalUsage int64  `json:"total_usage"`
+    Remaining  *int64 `json:"remaining"`   // Pointer to handle null
+}
+```
+
+## Real-time Event Handling
+
+The SDK provides a channel-based interface for handling real-time events via Server-Sent Events (SSE). This allows you to handle events concurrently in a separate goroutine using idiomatic Go patterns.
+
+### Channel-Based Interface
+
+The client provides a method that initiates the SSE connection in a background goroutine and returns channels for communication.
+
+```go
+eventCh, errCh, err := client.ListenForEvents(ctx)
+```
+
+**Method:** `(c *Client) ListenForEvents(ctx context.Context) (<-chan Event, <-chan error, error)`
+
+**Returns:**
+- `<-chan Event`: Read-only channel that streams incoming events
+- `<-chan error`: Read-only channel that streams connection-related errors  
+- `error`: Immediate error if the initial connection setup fails
+
+The provided `context.Context` is used to gracefully close the connection and channels when cancelled.
+
+### Event Structure
+
+```go
+import "encoding/json"
+
+// Event represents a single message from the event stream
+type Event struct {
+    EventID   string          `json:"event_id"`
+    EventType string          `json:"event_type"` // e.g., "subscription.created"
+    CreatedAt string          `json:"created_at"`
+    Data      json.RawMessage `json:"data"` // Raw JSON to be unmarshaled later
+}
+```
+
+### Event Data Types
+
+The event payload data can be unmarshaled based on the `EventType`:
+
+```go
+// For subscription events
+type SubscriptionEventData struct {
+    Customer     Customer     `json:"customer"`
+    Subscription Subscription `json:"subscription"`
 }
 
-fmt.Printf("Total usage: %d\n", usage.Total)
-fmt.Printf("Remaining: %d\n", usage.Remaining)
+// For invoice events
+type InvoiceEventData struct {
+    Customer Customer `json:"customer"`
+    Invoice  Invoice  `json:"invoice"`
+}
+
+type Subscription struct {
+    ID                   string `json:"id"`
+    StripeSubscriptionID string `json:"stripe_subscription_id"`
+    Status               string `json:"status"` // 'active', 'past_due', etc.
+    CurrentPeriodStart   string `json:"current_period_start"`
+    CurrentPeriodEnd     string `json:"current_period_end"`
+    ProductID            string `json:"product_id"`
+}
+
+type Invoice struct {
+    ID              string  `json:"id"`
+    StripeInvoiceID string  `json:"stripe_invoice_id"`
+    Status          string  `json:"status"` // 'paid', 'open', etc.
+    AmountDue       int64   `json:"amount_due"`   // In cents
+    AmountPaid      int64   `json:"amount_paid"`  // In cents
+    Currency        string  `json:"currency"`
+    URL             *string `json:"url"` // Hosted invoice URL from Stripe
+}
+```
+
+### Basic Event Listening
+
+```go
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "log"
+    "os/signal"
+    "syscall"
+    "github.com/plugnpay/plugnpay-go"
+)
+
+func main() {
+    // Use a context to handle graceful shutdown on SIGINT/SIGTERM
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    client, err := plugnpay.NewClient(nil)
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+    }
+
+    eventCh, errCh, err := client.ListenForEvents(ctx)
+    if err != nil {
+        log.Fatalf("Failed to start event listener: %v", err)
+    }
+
+    log.Println("Listening for PlugnPay events...")
+
+    // Event handling loop
+    for {
+        select {
+        case <-ctx.Done():
+            log.Println("Shutting down listener.")
+            return
+        case err := <-errCh:
+            log.Printf("Error from event stream: %v", err)
+            // Implement retry logic or exit
+            return
+        case event := <-eventCh:
+            log.Printf("Received event: %s", event.EventType)
+            handleEvent(event)
+        }
+    }
+}
+
+func handleEvent(event plugnpay.Event) {
+    switch event.EventType {
+    case "subscription.created":
+        var payload plugnpay.SubscriptionEventData
+        if err := json.Unmarshal(event.Data, &payload); err != nil {
+            log.Printf("Error unmarshaling data: %v", err)
+            return
+        }
+        log.Printf("New subscription for %s!", payload.Customer.Email)
+        // provisionNewAccount(payload.Customer.ID)
+    
+    case "subscription.updated":
+        var payload plugnpay.SubscriptionEventData
+        if err := json.Unmarshal(event.Data, &payload); err != nil {
+            log.Printf("Error unmarshaling data: %v", err)
+            return
+        }
+        log.Printf("Subscription updated for %s: %s", payload.Customer.Email, payload.Subscription.Status)
+        // updateUserPermissions(payload.Customer.ID, payload.Subscription.Status)
+
+    case "invoice.payment.failed":
+        var payload plugnpay.InvoiceEventData
+        if err := json.Unmarshal(event.Data, &payload); err != nil {
+            log.Printf("Error unmarshaling data: %v", err)
+            return
+        }
+        log.Printf("Payment failed for %s", payload.Customer.Email)
+        // sendPaymentFailedNotification(payload.Customer.ID, payload.Invoice.URL)
+    
+    default:
+        log.Printf("Unhandled event type: %s", event.EventType)
+    }
+}
+```
+
+### Complete Event Handling Example
+
+```go
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "log"
+    "os/signal"
+    "syscall"
+    "time"
+    "github.com/plugnpay/plugnpay-go"
+)
+
+type EventHandler struct {
+    client *plugnpay.Client
+}
+
+func NewEventHandler() (*EventHandler, error) {
+    client, err := plugnpay.NewClient(nil)
+    if err != nil {
+        return nil, err
+    }
+    
+    return &EventHandler{client: client}, nil
+}
+
+func (h *EventHandler) Start(ctx context.Context) error {
+    eventCh, errCh, err := h.client.ListenForEvents(ctx)
+    if err != nil {
+        return err
+    }
+
+    log.Println("PlugnPay event handler started...")
+
+    for {
+        select {
+        case <-ctx.Done():
+            log.Println("Event handler shutting down...")
+            return ctx.Err()
+            
+        case err := <-errCh:
+            log.Printf("Event stream error: %v", err)
+            // Implement exponential backoff retry logic
+            time.Sleep(5 * time.Second)
+            return err
+            
+        case event := <-eventCh:
+            if err := h.processEvent(event); err != nil {
+                log.Printf("Error processing event %s: %v", event.EventID, err)
+            }
+        }
+    }
+}
+
+func (h *EventHandler) processEvent(event plugnpay.Event) error {
+    log.Printf("Processing event %s: %s", event.EventID, event.EventType)
+
+    switch event.EventType {
+    case "subscription.created":
+        return h.handleSubscriptionCreated(event)
+    case "subscription.updated":
+        return h.handleSubscriptionUpdated(event)
+    case "subscription.deleted":
+        return h.handleSubscriptionDeleted(event)
+    case "invoice.payment.succeeded":
+        return h.handleInvoicePaymentSucceeded(event)
+    case "invoice.payment.failed":
+        return h.handleInvoicePaymentFailed(event)
+    default:
+        log.Printf("Unhandled event type: %s", event.EventType)
+        return nil
+    }
+}
+
+func (h *EventHandler) handleSubscriptionCreated(event plugnpay.Event) error {
+    var payload plugnpay.SubscriptionEventData
+    if err := json.Unmarshal(event.Data, &payload); err != nil {
+        return err
+    }
+
+    customer := payload.Customer
+    subscription := payload.Subscription
+
+    log.Printf("New %s subscription created for %s", subscription.ProductID, customer.Email)
+    
+    // Provision account
+    if err := h.provisionAccount(customer.ID); err != nil {
+        return err
+    }
+    
+    // Send welcome email
+    if err := h.sendWelcomeEmail(customer.Email); err != nil {
+        return err
+    }
+    
+    return nil
+}
+
+func (h *EventHandler) handleSubscriptionUpdated(event plugnpay.Event) error {
+    var payload plugnpay.SubscriptionEventData
+    if err := json.Unmarshal(event.Data, &payload); err != nil {
+        return err
+    }
+
+    customer := payload.Customer
+    subscription := payload.Subscription
+
+    log.Printf("Subscription updated for %s: %s", customer.Email, subscription.Status)
+    
+    // Update user permissions based on subscription status
+    return h.updateUserPermissions(customer.ID, subscription.Status)
+}
+
+func (h *EventHandler) handleSubscriptionDeleted(event plugnpay.Event) error {
+    var payload plugnpay.SubscriptionEventData
+    if err := json.Unmarshal(event.Data, &payload); err != nil {
+        return err
+    }
+
+    customer := payload.Customer
+    log.Printf("Subscription cancelled for %s", customer.Email)
+    
+    // Revoke access and archive data
+    return h.revokeAccess(customer.ID)
+}
+
+func (h *EventHandler) handleInvoicePaymentSucceeded(event plugnpay.Event) error {
+    var payload plugnpay.InvoiceEventData
+    if err := json.Unmarshal(event.Data, &payload); err != nil {
+        return err
+    }
+
+    customer := payload.Customer
+    invoice := payload.Invoice
+    amount := float64(invoice.AmountPaid) / 100 // Convert from cents
+
+    log.Printf("Payment of $%.2f succeeded for %s", amount, customer.Email)
+    
+    // Send payment receipt
+    return h.sendPaymentReceipt(customer.Email, invoice.URL)
+}
+
+func (h *EventHandler) handleInvoicePaymentFailed(event plugnpay.Event) error {
+    var payload plugnpay.InvoiceEventData
+    if err := json.Unmarshal(event.Data, &payload); err != nil {
+        return err
+    }
+
+    customer := payload.Customer
+    invoice := payload.Invoice
+
+    log.Printf("Payment failed for %s", customer.Email)
+    
+    // Send dunning email and pause service
+    if err := h.sendPaymentFailedNotification(customer.ID, invoice.URL); err != nil {
+        return err
+    }
+    
+    return h.pauseServiceAccess(customer.ID)
+}
+
+// Helper methods - implement according to your needs
+func (h *EventHandler) provisionAccount(customerID string) error {
+    // Implement account provisioning logic
+    log.Printf("Provisioning account for customer %s", customerID)
+    return nil
+}
+
+func (h *EventHandler) sendWelcomeEmail(email string) error {
+    // Implement welcome email sending
+    log.Printf("Sending welcome email to %s", email)
+    return nil
+}
+
+func (h *EventHandler) updateUserPermissions(customerID, status string) error {
+    // Implement permission updates
+    log.Printf("Updating permissions for customer %s to %s", customerID, status)
+    return nil
+}
+
+func (h *EventHandler) revokeAccess(customerID string) error {
+    // Implement access revocation
+    log.Printf("Revoking access for customer %s", customerID)
+    return nil
+}
+
+func (h *EventHandler) sendPaymentReceipt(email string, invoiceURL *string) error {
+    // Implement receipt sending
+    log.Printf("Sending payment receipt to %s", email)
+    return nil
+}
+
+func (h *EventHandler) sendPaymentFailedNotification(customerID string, invoiceURL *string) error {
+    // Implement payment failure notification
+    log.Printf("Sending payment failed notification to customer %s", customerID)
+    return nil
+}
+
+func (h *EventHandler) pauseServiceAccess(customerID string) error {
+    // Implement service access pausing
+    log.Printf("Pausing service access for customer %s", customerID)
+    return nil
+}
+
+func main() {
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer stop()
+
+    handler, err := NewEventHandler()
+    if err != nil {
+        log.Fatalf("Failed to create event handler: %v", err)
+    }
+
+    if err := handler.Start(ctx); err != nil && err != context.Canceled {
+        log.Fatalf("Event handler failed: %v", err)
+    }
+
+    log.Println("Event handler shutdown complete")
+}
+```
+
+## Complete Integration Example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "github.com/plugnpay/plugnpay-go"
+)
+
+func main() {
+    ctx := context.Background()
+    
+    // Initialize client
+    client, err := plugnpay.NewClient(nil)
+    if err != nil {
+        log.Fatalf("Failed to create client: %v", err)
+    }
+
+    // Create or get customer
+    customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+        Email: "customer@example.com",
+    })
+    if err != nil {
+        log.Fatalf("Failed to get customer: %v", err)
+    }
+    fmt.Printf("Customer ID: %s\n", customer.ID)
+
+    // Create checkout session
+    session, err := client.CreateCheckoutSession(ctx, plugnpay.CreateCheckoutSessionArgs{
+        CustomerID: customer.ID,
+        ProductID:  "premium-plan",
+        SuccessURL: "https://yourapp.com/success",
+        CancelURL:  "https://yourapp.com/cancel",
+    })
+    if err != nil {
+        log.Fatalf("Failed to create checkout session: %v", err)
+    }
+    fmt.Printf("Checkout URL: %s\n", session.URL)
+
+    // Check access (after customer completes purchase)
+    access, err := client.CheckAccess(ctx, plugnpay.CheckAccessArgs{
+        CustomerID: customer.ID,
+        FeatureID:  "premium-features",
+    })
+    if err != nil {
+        log.Fatalf("Failed to check access: %v", err)
+    }
+
+    if access.HasAccess {
+        // Track feature usage
+        _, err := client.TrackUsage(ctx, plugnpay.TrackUsageArgs{
+            CustomerID: customer.ID,
+            FeatureID:  "api-calls",
+            Value:      1,
+        })
+        if err != nil {
+            log.Fatalf("Failed to track usage: %v", err)
+        }
+
+        // Get usage stats
+        usage, err := client.GetUsage(ctx, plugnpay.GetUsageArgs{
+            CustomerID: customer.ID,
+            FeatureID:  "api-calls",
+        })
+        if err != nil {
+            log.Fatalf("Failed to get usage: %v", err)
+        }
+        fmt.Printf("API calls used: %d\n", usage.TotalUsage)
+    } else {
+        fmt.Println("Customer needs to upgrade for premium features")
+    }
+}
+```
+
+## Error Handling
+
+The SDK follows standard Go error handling patterns. All methods return an error as the last return value:
+
+```go
+ctx := context.Background()
+customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+    Email: "test@example.com",
+})
+if err != nil {
+    // Handle error
+    log.Printf("Error getting customer: %v", err)
+    return
+}
+
+// Use customer...
+```
+
+For context timeouts and cancellation:
+
+```go
+// Set a timeout for the request
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+    Email: "test@example.com",
+})
+if err != nil {
+    if ctx.Err() == context.DeadlineExceeded {
+        log.Println("Request timed out")
+    } else {
+        log.Printf("Request failed: %v", err)
+    }
+    return
+}
+```
+
+## Concurrency and Thread Safety
+
+The `*Client` is safe for concurrent use across multiple goroutines. You can safely share a single client instance across your application:
+
+```go
+// Safe to use the same client from multiple goroutines
+var wg sync.WaitGroup
+
+for i := 0; i < 10; i++ {
+    wg.Add(1)
+    go func(id int) {
+        defer wg.Done()
+        
+        customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+            Email: fmt.Sprintf("user%d@example.com", id),
+        })
+        if err != nil {
+            log.Printf("Goroutine %d failed: %v", id, err)
+            return
+        }
+        
+        log.Printf("Goroutine %d: Customer %s", id, customer.ID)
+    }(i)
+}
+
+wg.Wait()
 ```
