@@ -26,7 +26,7 @@ The PlugnPay Java SDK provides a comprehensive, enterprise-grade interface for i
 
 ```xml
 <dependency>
-    <groupId>com.plugnpay</groupId>
+    <groupId>dev.plugnpay</groupId>
     <artifactId>plugnpay-java</artifactId>
     <version>1.0.0</version>
 </dependency>
@@ -36,7 +36,7 @@ The PlugnPay Java SDK provides a comprehensive, enterprise-grade interface for i
 
 ```groovy
 dependencies {
-    implementation 'com.plugnpay:plugnpay-java:1.0.0'
+    implementation 'dev.plugnpay:plugnpay-java:1.0.0'
 }
 ```
 
@@ -44,7 +44,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("com.plugnpay:plugnpay-java:1.0.0")
+    implementation("dev.plugnpay:plugnpay-java:1.0.0")
 }
 ```
 
@@ -63,8 +63,8 @@ export PLUGNPAY_API_KEY="pk_test_xxxxxxxxxx"
 
 **Direct Configuration:**
 ```java
-import com.plugnpay.sdk.PlugnPayClient;
-import com.plugnpay.sdk.Config;
+import dev.plugnpay.sdk.PlugnPayClient;
+import dev.plugnpay.sdk.Config;
 
 // Using environment variable (recommended)
 PlugnPayClient client = PlugnPayClient.fromEnvironment();
@@ -162,7 +162,7 @@ public class Customer {
 Creates a payment checkout session URL for customer purchases.
 
 ```java
-import com.plugnpay.sdk.model.Provider;
+import dev.plugnpay.sdk.model.Provider;
 
 CreateCheckoutSessionRequest request = CreateCheckoutSessionRequest.builder()
     .customerId("cus_123")
@@ -686,7 +686,7 @@ public class PaymentProcessor {
 The SDK provides comprehensive error handling with typed exceptions and detailed error contexts:
 
 ```java
-import com.plugnpay.sdk.exception.*;
+import dev.plugnpay.sdk.exception.*;
 
 public void comprehensiveErrorHandling() {
     PlugnPayClient client = PlugnPayClient.fromEnvironment();
