@@ -27,7 +27,7 @@ The PlugnPay Java SDK provides a comprehensive, enterprise-grade interface for i
 ```xml
 <dependency>
     <groupId>dev.plugnpay</groupId>
-    <artifactId>plugnpay-java</artifactId>
+    <artifactId>plugnpay-sdk</artifactId>
     <version>1.0.0</version>
 </dependency>
 ```
@@ -36,7 +36,7 @@ The PlugnPay Java SDK provides a comprehensive, enterprise-grade interface for i
 
 ```groovy
 dependencies {
-    implementation 'dev.plugnpay:plugnpay-java:1.0.0'
+    implementation 'dev.plugnpay:plugnpay-sdk:1.0.0'
 }
 ```
 
@@ -44,7 +44,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("dev.plugnpay:plugnpay-java:1.0.0")
+    implementation("dev.plugnpay:plugnpay-sdk:1.0.0")
 }
 ```
 
@@ -56,40 +56,29 @@ The SDK client is configured via a primary constructor that accepts a configurat
 
 Authentication is handled via an API key that must start with `pk_test_` (for testing) or `pk_live_` (for production). Configure your API key in one of these ways:
 
-**Environment Variable (Recommended):**
-```bash
-export PLUGNPAY_API_KEY="pk_test_xxxxxxxxxx"
-```
 
 **Direct Configuration:**
 ```java
 import dev.plugnpay.sdk.PlugnPayClient;
-import dev.plugnpay.sdk.Config;
 
-// Using environment variable (recommended)
-PlugnPayClient client = PlugnPayClient.fromEnvironment();
-
-// Using direct API key
-Config config = new Config.Builder()
-    .apiKey("pk_test_xxxxxxxxxx") // Required
+var config = new PlugnPayClient.Config.Builder()
+    .apiKey("pk_test_xxxxxxxxxx")
     .build();
-PlugnPayClient clientWithOptions = new PlugnPayClient(config);
+
+PlugnPayClient client = new PlugnPayClient(config)
 ```
 
 ### Advanced Configuration
 
 ```java
-import java.time.Duration;
-import java.util.concurrent.Executors;
+import dev.plugnpay.sdk.PlugnPayClient;
 
-Config config = new Config.Builder()
+var config = new PlugnPayClient.Config.Builder()
     .apiKey("pk_test_xxxxxxxxxx")
-    .baseUrl("https://api.plugnpay.dev")  // Custom base URL
-    .httpClient(HttpClient.newBuilder()   // Custom HTTP client
-        .connectTimeout(Duration.ofSeconds(30))
-        .build())
-    .executor(Executors.newCachedThreadPool()) // Custom executor
-    .userAgent("MyApp/1.0.0")             // Custom user agent
+    .connectTimeoutSeconds(10)
+    .readTimeoutSeconds(10)
+    .writeTimeoutSeconds(10)
+    .timeoutSeconds(10)
     .build();
 
 PlugnPayClient client = new PlugnPayClient(config);
@@ -106,52 +95,22 @@ All methods return CompletableFuture objects for asynchronous execution and can 
 Retrieves or creates a customer record (upsert logic).
 
 ```java
-import java.util.concurrent.CompletableFuture;
-
-// Async execution
-CompletableFuture<Customer> customerFuture = client.getCustomer(
-    GetCustomerRequest.builder()
-        .cusId("cus_123")
-        .email("user@example.com")
-        .name("John Doe")  // Optional
-        .build()
-);
-
-// Using reactive patterns
-customerFuture
-    .thenAccept(customer -> {
-        System.out.println("Customer ID: " + customer.getCustomerId());
-    })
-    .exceptionally(throwable -> {
-        System.err.println("Error: " + throwable.getMessage());
-        return null;
-    });
-
-// Blocking execution (for demonstration)
-Customer customer = customerFuture.get();
-System.out.println("Customer ID: " + customer.getCustomerId());
+var customer = client.getCustomers().getCustomer("user_123", "john@example.com", "John Doe");
+System.out.println("Customer ID: " + customer.getId());
 ```
 
 **Parameters:**
-- `cusId` (String): Customer identifier
+- `id` (String): Customer identifier
 - `email` (String, optional): Customer email address
 - `name` (String, optional): Customer full name
 
-**Returns:** `CompletableFuture&lt;Customer&gt;`
+**Returns:** 
 ```java
-public class Customer {
-    private final String customerId;  // PlugnPay customer ID
-    private final String email;       // Customer email
-    private final String name;        // Customer name
-    private final String status;      // Customer account status
-    private final String env;         // Environment (test/live)
-    private final String createdAt;   // Creation timestamp
-    private final String updatedAt;   // Last update timestamp
-
-    // Getters, equals, hashCode, toString
-    public String getCustomerId() { return customerId; }
-    public String getEmail() { return email; }
-    // ... other getters
+public class Customer {    
+    public String getId()
+    public String getEmail()
+    public String getName()
+    public String getStatus()
 }
 ```
 
@@ -162,25 +121,15 @@ public class Customer {
 Creates a payment checkout session URL for customer purchases.
 
 ```java
-import dev.plugnpay.sdk.model.Provider;
+var checkout = client.getCheckout().createCheckoutSession(
+        customer.getId(),
+        "beta-free-1",
+        "https://example.com/success",
+        "https://example.com/cancel",
+        "stripe"
+    );
 
-CreateCheckoutSessionRequest request = CreateCheckoutSessionRequest.builder()
-    .customerId("cus_123")
-    .productId("premium-plan")
-    .successUrl("https://yourapp.com/success")
-    .cancelUrl("https://yourapp.com/cancel")  // Optional
-    .provider(Provider.STRIPE)                // Default: STRIPE
-    .metadata(Map.of("order_id", "ord_456"))  // Optional metadata
-    .build();
-
-client.createCheckoutSession(request)
-    .thenAccept(session -> {
-        System.out.println("Checkout URL: " + session.getUrl());
-    })
-    .exceptionally(throwable -> {
-        System.err.println("Failed to create checkout: " + throwable.getMessage());
-        return null;
-    });
+System.out.println("Checkout URL: " + checkout.getUrl());
 ```
 
 **Parameters:**
@@ -188,19 +137,15 @@ client.createCheckoutSession(request)
 - `productId` (String): Product ID from your PlugnPay dashboard
 - `successUrl` (String): URL to redirect after successful payment
 - `cancelUrl` (String, optional): URL to redirect on cancellation
-- `provider` (Provider): Payment provider (defaults to STRIPE)
+- `provider` (Provider): Payment provider (defaults `stripe`)
 - `metadata` (Map&lt;String, String&gt;): Additional checkout parameters
 
-**Returns:** `CompletableFuture&lt;CheckoutSession&gt;`
+**Returns:**
 ```java
-public class CheckoutSession {
-    private final String sessionId;  // Unique session identifier
-    private final String url;        // Checkout URL for customer
-    private final String expiresAt;  // Session expiration timestamp
-
-    public String getSessionId() { return sessionId; }
-    public String getUrl() { return url; }
-    public String getExpiresAt() { return expiresAt; }
+public class CheckoutSession {    
+    public String getUrl()
+    public String getSessionId()
+    public String getExpiresAt()
 }
 ```
 
@@ -211,45 +156,27 @@ public class CheckoutSession {
 Checks if a customer has access to a specific feature based on their subscription and usage limits.
 
 ```java
-client.checkAccess("cus_123", "premium-features")
-    .thenAccept(access -> {
-        if (access.hasAccess()) {
-            Long remaining = access.getUsageRemaining();
-            if (remaining != null) {
-                System.out.println("Access granted! Remaining usage: " + remaining);
-            } else {
-                System.out.println("Access granted with unlimited usage!");
-            }
-        } else {
-            System.out.println("Access denied. Upgrade required.");
-        }
-    })
-    .exceptionally(throwable -> {
-        System.err.println("Access check failed: " + throwable.getMessage());
-        return null;
-    });
+var accessResult = client.getAccess().checkAccess(customer.getId(), "feature-xxx");
+
+System.out.println("Customer Id: " + accessResult.getCustomerId());
+System.out.println("Has access: " + accessResult.getHasAccess());
+
 ```
 
 **Parameters:**
 - `customerId` (String): PlugnPay customer ID
 - `featureId` (String): Feature identifier
 
-**Returns:** `CompletableFuture&lt;AccessCheck&gt;`
+**Returns:**
 ```java
-public class AccessCheck {
-    private final boolean hasAccess;           // Whether customer has access
-    private final String featureId;            // Feature being checked
-    private final String customerId;           // Customer being checked
-    private final Long usageRemaining;         // Remaining usage units (null for unlimited)
-    private final Long usageTotal;             // Total usage so far
-    private final Long usageLimit;             // Maximum usage allowed (null for unlimited)
-    private final String resetDate;            // When usage resets
-    private final String subscriptionStatus;   // Current subscription status
-    private final String expiresAt;            // Access expiration timestamp
-
-    public boolean hasAccess() { return hasAccess; }
-    public Long getUsageRemaining() { return usageRemaining; }
-    // ... other getters
+public class AccessResult {   
+    public boolean isHasAccess()
+    public String getFeatureId()
+    public String getCustomerId()
+    public int getUsed()
+    public int getLimit()
+    public String getResetDate()
+    public String getSubscriptionStatus()
 }
 ```
 
@@ -260,21 +187,11 @@ public class AccessCheck {
 Reports usage for a metered feature. This action is idempotent to prevent duplicate tracking.
 
 ```java
-TrackUsageRequest request = TrackUsageRequest.builder()
-    .customerId("cus_123")
-    .featureId("ai-messages")
-    .usage(1.0)  // Supports fractional usage
-    .idempotencyKey("unique-operation-123")  // Optional
-    .build();
+var tracked = client.getUsage().trackUsage(customer.getId(), "feature-xxxx", 1, null);
 
-client.trackUsage(request)
-    .thenAccept(result -> {
-        System.out.println("Usage tracking success: " + result.isSuccess());
-    })
-    .exceptionally(throwable -> {
-        System.err.println("Usage tracking failed: " + throwable.getMessage());
-        return null;
-    });
+System.out.println("Added this time: " + tracked.getAdded());
+System.out.println("Total used: " + tracked.getUsed());
+System.out.println("Track idempotency key: " + tracked.getIdempotencyKey());
 ```
 
 **Parameters:**
@@ -283,12 +200,15 @@ client.trackUsage(request)
 - `usage` (Double): Usage amount to track
 - `idempotencyKey` (String, optional): Prevents duplicate tracking
 
-**Returns:** `CompletableFuture&lt;TrackUsageResponse&gt;`
+**Returns:**
 ```java
-public class TrackUsageResponse {
-    private final boolean success;  // Tracking confirmation
-
-    public boolean isSuccess() { return success; }
+public class TrackUsage {
+    public String getCustomerId()
+    public String getFeatureId()
+    public int getAdded()
+    public int getUsed()
+    public String getTimestamp()
+    public String getIdempotencyKey()
 }
 ```
 
@@ -297,36 +217,22 @@ public class TrackUsageResponse {
 Retrieves current usage details for a customer's feature.
 
 ```java
-client.getUsage("cus_123", "ai-messages")
-    .thenAccept(usage -> {
-        System.out.println("Total usage: " + usage.getTotalUsage());
-        Long remaining = usage.getRemaining();
-        if (remaining != null) {
-            System.out.println("Remaining: " + remaining);
-        } else {
-            System.out.println("Remaining: unlimited");
-        }
-    })
-    .exceptionally(throwable -> {
-        System.err.println("Get usage failed: " + throwable.getMessage());
-        return null;
-    });
+var usage = client.getUsage().getUsage(customer.getId(), "feature-xxxx");
+
+
+System.out.println("Used: " + usage.getUsed());
+System.out.println("Limit: " + usage.getLimit());
 ```
 
 **Parameters:**
 - `customerId` (String): PlugnPay customer ID
 - `featureId` (String): Feature identifier
 
-**Returns:** `CompletableFuture&lt;GetUsageResponse&gt;`
+**Returns:**
 ```java
-public class GetUsageResponse {
-    private final Long limit;       // Total limit for period (null for unlimited)
-    private final Long totalUsage;  // Total usage in current billing period
-    private final Long remaining;   // Remaining usage (null if limit is null)
-
-    public Long getLimit() { return limit; }
-    public Long getTotalUsage() { return totalUsage; }
-    public Long getRemaining() { return remaining; }
+public class UsageStats {    
+    public int getLimit()
+    public int getUsed()
 }
 ```
 
@@ -353,47 +259,34 @@ public class GetUsageResponse {
 Simply subscribe to events as they arrive - PlugnPay handles all the webhook complexity behind the scenes:
 
 ```java
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
+Flow.Publisher<SseEvent> publisher = client.getSse().subscribe(null);
 
-public class EventListenerExample {
-    public static void main(String[] args) {
-        PlugnPayClient client = PlugnPayClient.fromEnvironment();
+publisher.subscribe(new Flow.Subscriber<>() {
+    private Flow.Subscription subscription;
 
-        System.out.println("Listening for payment events (no webhooks needed!)...");
-
-        // PlugnPay processes Stripe/PayPal webhooks and sends you clean events
-        Consumer<Event> eventHandler = event -> {
-            System.out.println("Event: " + event.getEventType());
-            System.out.println("Customer: " + event.getCustomerId());
-
-            // Handle purchase completion instantly
-            if ("subscription.created".equals(event.getEventType())) {
-                SubscriptionEventData data = event.getDataAs(SubscriptionEventData.class);
-                System.out.println("🎉 New subscriber: " + data.getCustomer().getCustomerId());
-                // Provision access immediately - no webhook delays!
-
-            } else if ("payment_intent.succeeded".equals(event.getEventType())) {
-                System.out.println("💰 Payment received for " + event.getCustomerId());
-                // Update user account, send receipt, etc.
-            }
-        };
-
-        Consumer<Throwable> errorHandler = error -> {
-            System.err.println("Event stream error: " + error.getMessage());
-            // Handle reconnection logic
-        };
-
-        CompletableFuture<Void> eventStream = client.listenForEvents(eventHandler, errorHandler);
-
-        // Keep the application running
-        try {
-            eventStream.get(); // This blocks until the stream is terminated
-        } catch (Exception e) {
-            System.err.println("Event stream terminated: " + e.getMessage());
-        }
+    @Override
+    public void onSubscribe(Flow.Subscription subscription) {
+        this.subscription = subscription;
+        subscription.request(1);
     }
-}
+
+    @Override
+    public void onNext(SseEvent event) {
+        System.out.println("Java => Event: " + event.getType() +
+                " | Customer: " + event.getId());
+        subscription.request(1);
+    }
+
+    @Override
+    public void onError(Throwable throwable) {
+        System.err.println("Java => Error: " + throwable.getMessage());
+    }
+
+    @Override
+    public void onComplete() {
+        System.out.println("Java => Stream completed");
+    }
+});
 ```
 
 ### Event Structure
@@ -402,880 +295,109 @@ PlugnPay transforms raw webhook payloads from payment providers into clean, stru
 
 ```java
 // Event represents a single message from the event stream
-public class Event {
-    private final String eventId;      // Unique event identifier
-    private final String eventType;    // Standardized event type
-    private final String customerId;   // Your customer ID
-    private final Object data;         // Relevant data only (type-safe)
-    private final String createdAt;    // Event timestamp
-
-    public String getEventId() { return eventId; }
-    public String getEventType() { return eventType; }
-    public String getCustomerId() { return customerId; }
-    public String getCreatedAt() { return createdAt; }
-
-    // Type-safe data extraction
-    public <T> T getDataAs(Class<T> type) {
-        return objectMapper.convertValue(data, type);
-    }
-}
-
-// Event payload types for type-safe processing
-public class SubscriptionEventData {
-    private final Customer customer;
-    private final Subscription subscription;
-
-    public Customer getCustomer() { return customer; }
-    public Subscription getSubscription() { return subscription; }
-}
-
-public class InvoiceEventData {
-    private final Customer customer;
-    private final Invoice invoice;
-
-    public Customer getCustomer() { return customer; }
-    public Invoice getInvoice() { return invoice; }
-}
-
-public class Subscription {
-    private final String id;
-    private final String stripeSubscriptionId;
-    private final String status;  // 'active', 'past_due', 'canceled', etc.
-    private final String currentPeriodStart;
-    private final String currentPeriodEnd;
-    private final String productId;
-
-    // Getters
-    public String getId() { return id; }
-    public String getStatus() { return status; }
-    public String getProductId() { return productId; }
-    // ... other getters
-}
-
-public class Invoice {
-    private final String id;
-    private final String stripeInvoiceId;
-    private final String status;    // 'paid', 'open', 'void', etc.
-    private final Long amountDue;   // In cents
-    private final Long amountPaid;  // In cents
-    private final String currency;
-    private final String url;       // Hosted invoice URL from Stripe
-
-    // Getters
-    public String getId() { return id; }
-    public String getStatus() { return status; }
-    public Long getAmountPaid() { return amountPaid; }
-    public String getUrl() { return url; }
-    // ... other getters
-}
-```
-
-### Production-Ready Event Handling
-
-Here's a complete example showing how PlugnPay eliminates webhook complexity for a SaaS application:
-
-```java
-import java.util.concurrent.*;
-import java.util.function.Consumer;
-
-public class PaymentProcessor {
-    private final PlugnPayClient client;
-    private final ExecutorService executorService;
-    private CompletableFuture<Void> eventStreamFuture;
-
-    public PaymentProcessor() {
-        this.client = PlugnPayClient.fromEnvironment();
-        this.executorService = Executors.newCachedThreadPool();
-    }
-
-    public void start() {
-        System.out.println("🚀 Starting payment processor (no webhooks needed)");
-
-        Consumer<Event> eventHandler = event -> {
-            // Process events asynchronously for better performance
-            executorService.submit(() -> processEvent(event));
-        };
-
-        Consumer<Throwable> errorHandler = error -> {
-            System.err.println("❌ Event stream error: " + error.getMessage());
-            // Implement exponential backoff retry logic
-            CompletableFuture.delayedExecutor(5, TimeUnit.SECONDS)
-                .execute(() -> start()); // Restart listening
-        };
-
-        eventStreamFuture = client.listenForEvents(eventHandler, errorHandler);
-        System.out.println("✨ Payment processor running - webhook-free architecture!");
-    }
-
-    public void stop() {
-        if (eventStreamFuture != null) {
-            eventStreamFuture.cancel(true);
-        }
-        executorService.shutdown();
-    }
-
-    private void processEvent(Event event) {
-        try {
-            System.out.println("Processing event " + event.getEventId() + ": " + event.getEventType());
-
-            switch (event.getEventType()) {
-                case "subscription.created":
-                    handleSubscriptionCreated(event);
-                    break;
-                case "subscription.updated":
-                    handleSubscriptionUpdated(event);
-                    break;
-                case "subscription.deleted":
-                    handleSubscriptionCancelled(event);
-                    break;
-                case "invoice.payment.succeeded":
-                    handlePaymentSucceeded(event);
-                    break;
-                case "invoice.payment.failed":
-                    handlePaymentFailed(event);
-                    break;
-                default:
-                    System.out.println("Unhandled event type: " + event.getEventType());
-            }
-        } catch (Exception e) {
-            System.err.println("Error processing event " + event.getEventId() + ": " + e.getMessage());
-            // Log error, send to monitoring system, etc.
-        }
-    }
-
-    private void handleSubscriptionCreated(Event event) {
-        // New customer subscribed - provision access immediately
-        SubscriptionEventData data = event.getDataAs(SubscriptionEventData.class);
-        String customerId = data.getCustomer().getCustomerId();
-        String planId = data.getSubscription().getProductId();
-
-        System.out.println("🎉 New subscriber: " + customerId + " on plan " + planId);
-
-        // Instant provisioning - no webhook delays or failures
-        try {
-            enablePremiumFeatures(customerId, planId);
-            sendWelcomeEmail(data.getCustomer().getEmail());
-            updateUserDashboard(customerId, "premium");
-            System.out.println("✅ Provisioned access for " + customerId);
-        } catch (Exception e) {
-            System.err.println("❌ Failed to provision " + customerId + ": " + e.getMessage());
-        }
-    }
-
-    private void handlePaymentSucceeded(Event event) {
-        // Payment confirmed - extend service
-        InvoiceEventData data = event.getDataAs(InvoiceEventData.class);
-        String customerId = data.getCustomer().getCustomerId();
-        Long amount = data.getInvoice().getAmountPaid();
-
-        System.out.printf("💰 Payment received: $%.2f from %s%n", amount / 100.0, customerId);
-
-        // Process payment instantly
-        extendServicePeriod(customerId);
-        sendReceipt(data.getCustomer().getEmail(), amount);
-        updateBillingHistory(customerId, amount);
-    }
-
-    private void handleSubscriptionCancelled(Event event) {
-        // Subscription cancelled - manage gracefully
-        SubscriptionEventData data = event.getDataAs(SubscriptionEventData.class);
-        String customerId = data.getCustomer().getCustomerId();
-
-        System.out.println("📋 Subscription cancelled for " + customerId);
-
-        // Handle cancellation gracefully
-        scheduleAccessRevocation(customerId);  // Grace period
-        sendCancellationEmail(data.getCustomer().getEmail());
-        triggerWinBackCampaign(customerId);
-    }
-
-    private void handlePaymentFailed(Event event) {
-        InvoiceEventData data = event.getDataAs(InvoiceEventData.class);
-        String customerId = data.getCustomer().getCustomerId();
-
-        System.out.println("❌ Payment failed for " + customerId);
-
-        // Handle payment failure
-        sendPaymentFailedNotification(customerId, data.getInvoice().getUrl());
-        pauseServiceAccess(customerId);
-    }
-
-    // Helper methods (implement these for your app)
-    private void enablePremiumFeatures(String customerId, String planId) {
-        System.out.println("Enabling premium features for " + customerId + " on plan " + planId);
-        // Implement premium feature enablement
-    }
-
-    private void sendWelcomeEmail(String email) {
-        System.out.println("Sending welcome email to " + email);
-        // Implement email sending
-    }
-
-    private void updateUserDashboard(String customerId, String tier) {
-        System.out.println("Updating dashboard for " + customerId + " to " + tier + " tier");
-        // Implement dashboard update
-    }
-
-    private void extendServicePeriod(String customerId) {
-        System.out.println("Extending service period for " + customerId);
-        // Implement service extension
-    }
-
-    private void sendReceipt(String email, Long amount) {
-        System.out.printf("Sending receipt to %s for $%.2f%n", email, amount / 100.0);
-        // Implement receipt sending
-    }
-
-    private void updateBillingHistory(String customerId, Long amount) {
-        System.out.printf("Updating billing history for %s: $%.2f%n", customerId, amount / 100.0);
-        // Implement billing history update
-    }
-
-    private void scheduleAccessRevocation(String customerId) {
-        System.out.println("Scheduling access revocation for " + customerId);
-        // Implement access revocation scheduling
-    }
-
-    private void sendCancellationEmail(String email) {
-        System.out.println("Sending cancellation email to " + email);
-        // Implement cancellation email
-    }
-
-    private void triggerWinBackCampaign(String customerId) {
-        System.out.println("Triggering win-back campaign for " + customerId);
-        // Implement win-back campaign
-    }
-
-    private void sendPaymentFailedNotification(String customerId, String invoiceUrl) {
-        System.out.println("Sending payment failed notification to " + customerId);
-        // Implement payment failure notification
-    }
-
-    private void pauseServiceAccess(String customerId) {
-        System.out.println("Pausing service access for " + customerId);
-        // Implement service access pausing
-    }
-
-    public static void main(String[] args) {
-        PaymentProcessor processor = new PaymentProcessor();
-
-        // Add shutdown hook for graceful termination
-        Runtime.getRuntime().addShutdownHook(new Thread(processor::stop));
-
-        // No webhook server needed - just run your payment processor!
-        processor.start();
-
-        // Keep the application running
-        try {
-            Thread.currentThread().join();
-        } catch (InterruptedException e) {
-            System.out.println("Payment processor interrupted");
-        }
-    }
-}
-```
-
-**Key Benefits Demonstrated:**
-- ✅ **Zero webhook infrastructure** - no endpoints, no servers, no security concerns
-- ✅ **Instant event processing** - no webhook delivery delays or failures
-- ✅ **Reactive programming** - perfect for Java's async ecosystem
-- ✅ **Type-safe event handling** - compile-time safety with comprehensive error handling
-
-## Error Handling
-
-The SDK provides comprehensive error handling with typed exceptions and detailed error contexts:
-
-```java
-import dev.plugnpay.sdk.exception.*;
-
-public void comprehensiveErrorHandling() {
-    PlugnPayClient client = PlugnPayClient.fromEnvironment();
-
-    client.getCustomer(GetCustomerRequest.builder()
-            .cusId("cus_123")
-            .email("test@example.com")
-            .build())
-        .thenAccept(customer -> {
-            System.out.println("Customer: " + customer);
-        })
-        .exceptionally(throwable -> {
-            Throwable cause = throwable.getCause();
-
-            if (cause instanceof AuthenticationException) {
-                AuthenticationException e = (AuthenticationException) cause;
-                System.err.println("Invalid API key: " + e.getMessage());
-                System.err.println("Request ID: " + e.getRequestId());
-            } else if (cause instanceof ValidationException) {
-                ValidationException e = (ValidationException) cause;
-                System.err.println("Invalid parameters: " + e.getMessage());
-                e.getFieldErrors().forEach((field, error) ->
-                    System.err.println("Field " + field + ": " + error));
-            } else if (cause instanceof RateLimitException) {
-                RateLimitException e = (RateLimitException) cause;
-                System.err.println("Rate limit exceeded: " + e.getMessage());
-                System.err.println("Retry after: " + e.getRetryAfter() + " seconds");
-            } else if (cause instanceof NotFoundException) {
-                NotFoundException e = (NotFoundException) cause;
-                System.err.println("Resource not found: " + e.getMessage());
-            } else if (cause instanceof ServerException) {
-                ServerException e = (ServerException) cause;
-                System.err.println("Server error: " + e.getMessage());
-                System.err.println("Status code: " + e.getStatusCode());
-            } else if (cause instanceof PlugnPayException) {
-                PlugnPayException e = (PlugnPayException) cause;
-                System.err.println("General PlugnPay error: " + e.getMessage());
-            } else {
-                System.err.println("Unexpected error: " + throwable.getMessage());
-            }
-            return null;
-        });
+public class SseEvent {
+    public String getId()
+    public String getType()
+    public Object getData()
+    public String getCreatedAt()
 }
 ```
 
 ### Exception Hierarchy
 
-```java
-// Base exception class
-public abstract class PlugnPayException extends RuntimeException {
-    private final int statusCode;
-    private final String requestId;
-
-    public int getStatusCode() { return statusCode; }
-    public String getRequestId() { return requestId; }
-}
-
-// Specific exception types
-public class AuthenticationException extends PlugnPayException {
-    // Invalid API key or authentication failure
-}
-
-public class ValidationException extends PlugnPayException {
-    private final Map<String, String> fieldErrors;
-
-    public Map<String, String> getFieldErrors() { return fieldErrors; }
-}
-
-public class RateLimitException extends PlugnPayException {
-    private final int retryAfter;  // Seconds to wait before retrying
-
-    public int getRetryAfter() { return retryAfter; }
-}
-
-public class NotFoundException extends PlugnPayException {
-    // Resource not found
-}
-
-public class ConflictException extends PlugnPayException {
-    // Resource conflict (e.g., duplicate)
-}
-
-public class ServerException extends PlugnPayException {
-    // Server-side errors (5xx responses)
-}
-```
-
-### Timeout and Cancellation Handling
+The SDK provides comprehensive error handling with typed exceptions and detailed error contexts:
 
 ```java
-import java.time.Duration;
-import java.util.concurrent.TimeoutException;
+public class PlugnPayError extends RuntimeException {}
 
-// Set timeout for operations
-public CompletableFuture<Customer> getCustomerWithTimeout(String email) {
-    return client.getCustomer(GetCustomerRequest.builder()
-            .email(email)
-            .build())
-        .orTimeout(10, TimeUnit.SECONDS)
-        .exceptionally(throwable -> {
-            if (throwable instanceof TimeoutException) {
-                System.err.println("Request timed out after 10 seconds");
-            }
-            throw new RuntimeException(throwable);
-        });
-}
+public class AuthenticationError extends PlugnPayError {}
 
-// Cancellable operations
-public CompletableFuture<Customer> getCancellableCustomer(String email) {
-    CompletableFuture<Customer> future = client.getCustomer(
-        GetCustomerRequest.builder().email(email).build()
-    );
+public class ValidationError extends PlugnPayError {}
 
-    // Cancel after some condition
-    CompletableFuture.delayedExecutor(5, TimeUnit.SECONDS)
-        .execute(() -> future.cancel(true));
+public class NotFoundError extends PlugnPayError {}
 
-    return future.exceptionally(throwable -> {
-        if (future.isCancelled()) {
-            System.err.println("Request was cancelled");
-        }
-        return null;
-    });
-}
+public class ConflictError extends PlugnPayError {}
+
+public class RateLimitError extends PlugnPayError {}
+
+public class ServerError extends PlugnPayError {}
 ```
+
 
 ## Complete Integration Example
 
 Here's a comprehensive example showing all major SDK features:
 
 ```java
-import java.util.concurrent.*;
-import java.util.Map;
+package org.example;
 
-public class PlugnPayService {
-    private final PlugnPayClient client;
-    private final ExecutorService executorService;
+import dev.plugnpay.sdk.PlugnPayClient;
+import dev.plugnpay.sdk.SseEvent;
 
-    public PlugnPayService() {
-        this.client = PlugnPayClient.fromEnvironment();
-        this.executorService = Executors.newCachedThreadPool();
-    }
+import java.util.concurrent.Flow;
 
-    public CompletableFuture<CheckoutResult> createCustomerAndCheckout(String email, String productId) {
-        return client.getCustomer(GetCustomerRequest.builder()
-                .cusId("customer_123")
-                .email(email)
-                .name("John Doe")
-                .build())
-            .thenCompose(customer -> {
-                System.out.println("Customer ID: " + customer.getCustomerId());
+public class SseBasicJava {
+    public static void main(String[] args) {
+        var config = new PlugnPayClient.Config.Builder()
+                .apiKey("pk_test_xxxxxxxxxx")
+                .build();
 
-                CreateCheckoutSessionRequest request = CreateCheckoutSessionRequest.builder()
-                    .customerId(customer.getCustomerId())
-                    .productId(productId)
-                    .successUrl("https://yourapp.com/success")
-                    .cancelUrl("https://yourapp.com/cancel")
-                    .provider(Provider.STRIPE)
-                    .build();
+        try (PlugnPayClient client = new PlugnPayClient(config)) {
 
-                return client.createCheckoutSession(request)
-                    .thenApply(session -> new CheckoutResult.Success(
-                        customer.getCustomerId(),
-                        session.getUrl()
-                    ));
-            })
-            .exceptionally(throwable -> new CheckoutResult.Error(
-                "Checkout creation failed: " + throwable.getMessage()
-            ));
-    }
+            Flow.Publisher<SseEvent> publisher = client.getSse().subscribe(null);
 
-    public CompletableFuture<AccessResult> checkUserAccess(String customerId, String featureId) {
-        return client.checkAccess(customerId, featureId)
-            .thenCompose(access -> {
-                if (access.hasAccess()) {
-                    // Track usage for metered features
-                    TrackUsageRequest request = TrackUsageRequest.builder()
-                        .customerId(customerId)
-                        .featureId(featureId)
-                        .usage(1.0)
-                        .build();
+            publisher.subscribe(new Flow.Subscriber<>() {
+                private Flow.Subscription subscription;
 
-                    return client.trackUsage(request)
-                        .thenCompose(trackResult -> client.getUsage(customerId, featureId))
-                        .thenApply(usage -> new AccessResult.Granted(
-                            usage.getTotalUsage(),
-                            usage.getRemaining()
-                        ));
-                } else {
-                    return CompletableFuture.completedFuture(new AccessResult.Denied());
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    this.subscription = subscription;
+                    subscription.request(1);
                 }
-            })
-            .exceptionally(throwable -> new AccessResult.Error(
-                "Access check failed: " + throwable.getMessage()
-            ));
-    }
 
-    public CompletableFuture<Void> startEventProcessing() {
-        return client.listenForEvents(
-            event -> handleEvent(event),
-            error -> System.err.println("Event stream error: " + error.getMessage())
-        );
-    }
-
-    private void handleEvent(Event event) {
-        executorService.submit(() -> {
-            switch (event.getEventType()) {
-                case "subscription.created":
-                    SubscriptionEventData subData = event.getDataAs(SubscriptionEventData.class);
-                    System.out.println("New subscription for " + subData.getCustomer().getEmail());
-                    break;
-                case "payment_intent.succeeded":
-                    InvoiceEventData invData = event.getDataAs(InvoiceEventData.class);
-                    System.out.println("Payment successful for " + invData.getCustomer().getEmail());
-                    break;
-                default:
-                    System.out.println("Unhandled event: " + event.getEventType());
-            }
-        });
-    }
-
-    public void shutdown() {
-        executorService.shutdown();
-    }
-}
-
-// Result types for better type safety
-public abstract class CheckoutResult {
-    public static class Success extends CheckoutResult {
-        private final String customerId;
-        private final String checkoutUrl;
-
-        public Success(String customerId, String checkoutUrl) {
-            this.customerId = customerId;
-            this.checkoutUrl = checkoutUrl;
-        }
-
-        public String getCustomerId() { return customerId; }
-        public String getCheckoutUrl() { return checkoutUrl; }
-    }
-
-    public static class Error extends CheckoutResult {
-        private final String message;
-
-        public Error(String message) { this.message = message; }
-        public String getMessage() { return message; }
-    }
-}
-
-public abstract class AccessResult {
-    public static class Granted extends AccessResult {
-        private final Long usage;
-        private final Long remaining;
-
-        public Granted(Long usage, Long remaining) {
-            this.usage = usage;
-            this.remaining = remaining;
-        }
-
-        public Long getUsage() { return usage; }
-        public Long getRemaining() { return remaining; }
-    }
-
-    public static class Denied extends AccessResult {}
-
-    public static class Error extends AccessResult {
-        private final String message;
-
-        public Error(String message) { this.message = message; }
-        public String getMessage() { return message; }
-    }
-}
-
-// Usage example
-public class IntegrationExample {
-    public static void main(String[] args) throws Exception {
-        PlugnPayService plugnPayService = new PlugnPayService();
-
-        // Create checkout for a customer
-        CompletableFuture<CheckoutResult> checkoutFuture =
-            plugnPayService.createCustomerAndCheckout("customer@example.com", "premium-plan");
-
-        checkoutFuture.thenAccept(checkoutResult -> {
-            if (checkoutResult instanceof CheckoutResult.Success) {
-                CheckoutResult.Success success = (CheckoutResult.Success) checkoutResult;
-                System.out.println("Redirect to: " + success.getCheckoutUrl());
-
-                // Later, check if user has access to features
-                plugnPayService.checkUserAccess(success.getCustomerId(), "premium-features")
-                    .thenAccept(accessResult -> {
-                        if (accessResult instanceof AccessResult.Granted) {
-                            AccessResult.Granted granted = (AccessResult.Granted) accessResult;
-                            System.out.println("Feature access granted. Usage: " + granted.getUsage());
-                            if (granted.getRemaining() != null) {
-                                System.out.println("Remaining: " + granted.getRemaining());
-                            }
-                        } else if (accessResult instanceof AccessResult.Denied) {
-                            System.out.println("Upgrade required for this feature");
-                        } else if (accessResult instanceof AccessResult.Error) {
-                            AccessResult.Error error = (AccessResult.Error) accessResult;
-                            System.out.println("Error: " + error.getMessage());
-                        }
-                    });
-            } else if (checkoutResult instanceof CheckoutResult.Error) {
-                CheckoutResult.Error error = (CheckoutResult.Error) checkoutResult;
-                System.out.println("Checkout failed: " + error.getMessage());
-            }
-        }).join(); // Wait for completion
-
-        // Start event processing
-        plugnPayService.startEventProcessing();
-
-        // Graceful shutdown
-        Runtime.getRuntime().addShutdownHook(new Thread(plugnPayService::shutdown));
-    }
-}
-```
-
-## Framework Integrations
-
-### Spring Boot Integration
-
-Create a configuration class for seamless Spring Boot integration:
-
-```java
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
-@Configuration
-public class PlugnPayConfiguration {
-
-    @Bean
-    public PlugnPayClient plugnPayClient(PlugnPayProperties properties) {
-        Config config = new Config.Builder()
-            .apiKey(properties.getApiKey())
-            .baseUrl(properties.getBaseUrl())
-            .build();
-        return new PlugnPayClient(config);
-    }
-}
-
-@ConfigurationProperties(prefix = "plugnpay")
-public class PlugnPayProperties {
-    private String apiKey;
-    private String baseUrl = "https://api.plugnpay.dev";
-
-    // Getters and setters
-    public String getApiKey() { return apiKey; }
-    public void setApiKey(String apiKey) { this.apiKey = apiKey; }
-    public String getBaseUrl() { return baseUrl; }
-    public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
-}
-```
-
-**application.yml:**
-```yaml
-plugnpay:
-  api-key: ${PLUGNPAY_API_KEY}
-  base-url: https://api.plugnpay.dev
-```
-
-**Controller Example:**
-```java
-import org.springframework.web.bind.annotation.*;
-import org.springframework.http.ResponseEntity;
-import java.util.concurrent.CompletableFuture;
-
-@RestController
-@RequestMapping("/api/plugnpay")
-public class PlugnPayController {
-
-    private final PlugnPayClient plugnPayClient;
-
-    public PlugnPayController(PlugnPayClient plugnPayClient) {
-        this.plugnPayClient = plugnPayClient;
-    }
-
-    @PostMapping("/checkout")
-    public CompletableFuture<ResponseEntity<Map<String, String>>> createCheckout(
-            @RequestBody CheckoutRequest request) {
-
-        return plugnPayClient.getCustomer(GetCustomerRequest.builder()
-                .email(request.getEmail())
-                .build())
-            .thenCompose(customer ->
-                plugnPayClient.createCheckoutSession(CreateCheckoutSessionRequest.builder()
-                    .customerId(customer.getCustomerId())
-                    .productId(request.getProductId())
-                    .successUrl(request.getSuccessUrl())
-                    .cancelUrl(request.getCancelUrl())
-                    .build()))
-            .thenApply(session -> ResponseEntity.ok(Map.of(
-                "checkout_url", session.getUrl(),
-                "session_id", session.getSessionId()
-            )))
-            .exceptionally(throwable ->
-                ResponseEntity.badRequest().body(Map.of(
-                    "error", throwable.getMessage()
-                )));
-    }
-
-    @GetMapping("/access/{customerId}/{featureId}")
-    public CompletableFuture<ResponseEntity<AccessCheck>> checkAccess(
-            @PathVariable String customerId,
-            @PathVariable String featureId) {
-
-        return plugnPayClient.checkAccess(customerId, featureId)
-            .thenApply(ResponseEntity::ok)
-            .exceptionally(throwable ->
-                ResponseEntity.badRequest().build());
-    }
-}
-
-// Request DTOs
-public class CheckoutRequest {
-    private String email;
-    private String productId;
-    private String successUrl;
-    private String cancelUrl;
-
-    // Getters and setters
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
-    // ... other getters and setters
-}
-```
-
-### Quarkus Integration
-
-For Quarkus applications, create a producer:
-
-```java
-import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.inject.Produces;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
-@ApplicationScoped
-public class PlugnPayProducer {
-
-    @ConfigProperty(name = "plugnpay.api-key")
-    String apiKey;
-
-    @ConfigProperty(name = "plugnpay.base-url", defaultValue = "https://api.plugnpay.dev")
-    String baseUrl;
-
-    @Produces
-    @ApplicationScoped
-    public PlugnPayClient createPlugnPayClient() {
-        Config config = new Config.Builder()
-            .apiKey(apiKey)
-            .baseUrl(baseUrl)
-            .build();
-        return new PlugnPayClient(config);
-    }
-}
-```
-
-**application.properties:**
-```properties
-plugnpay.api-key=${PLUGNPAY_API_KEY}
-plugnpay.base-url=https://api.plugnpay.dev
-```
-
-### Micronaut Integration
-
-For Micronaut applications:
-
-```java
-import io.micronaut.context.annotation.Bean;
-import io.micronaut.context.annotation.Factory;
-import io.micronaut.context.annotation.Value;
-
-@Factory
-public class PlugnPayFactory {
-
-    @Bean
-    public PlugnPayClient plugnPayClient(
-            @Value("${plugnpay.api-key}") String apiKey,
-            @Value("${plugnpay.base-url:https://api.plugnpay.dev}") String baseUrl) {
-
-        Config config = new Config.Builder()
-            .apiKey(apiKey)
-            .baseUrl(baseUrl)
-            .build();
-        return new PlugnPayClient(config);
-    }
-}
-```
-
-## Thread Safety and Concurrency
-
-The `PlugnPayClient` is fully thread-safe and designed for concurrent usage:
-
-```java
-import java.util.concurrent.*;
-import java.util.List;
-import java.util.stream.IntStream;
-
-public class ConcurrencyExample {
-    public static void main(String[] args) throws Exception {
-        PlugnPayClient client = PlugnPayClient.fromEnvironment();
-        ExecutorService executor = Executors.newFixedThreadPool(10);
-
-        // Safe to use the same client from multiple threads
-        List<CompletableFuture<Customer>> futures = IntStream.range(0, 10)
-            .mapToObj(i -> CompletableFuture.supplyAsync(() -> {
-                try {
-                    String email = "user" + i + "@example.com";
-                    return client.getCustomer(GetCustomerRequest.builder()
-                        .email(email)
-                        .build()).get();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+                @Override
+                public void onNext(SseEvent event) {
+                    System.out.println("Java => Event: " + event.getType() +
+                            " | Customer: " + event.getId());
+                    subscription.request(1);
                 }
-            }, executor))
-            .toList();
 
-        // Wait for all operations to complete
-        CompletableFuture<List<Customer>> allFutures = CompletableFuture.allOf(
-            futures.toArray(new CompletableFuture[0]))
-            .thenApply(v -> futures.stream()
-                .map(CompletableFuture::join)
-                .toList());
+                @Override
+                public void onError(Throwable throwable) {
+                    System.err.println("Java => Error: " + throwable.getMessage());
+                }
 
-        List<Customer> customers = allFutures.get();
-        customers.forEach(customer ->
-            System.out.println("Customer: " + customer.getCustomerId()));
+                @Override
+                public void onComplete() {
+                    System.out.println("Java => Stream completed");
+                }
+            });
 
-        executor.shutdown();
-    }
-}
-```
+            var customer = client.getCustomers().getCustomer("user_123", "john@example.com", "John Doe");
+            var checkout = client.getCheckout().createCheckoutSession(
+                    customer.getId(),
+                    "beta-free-1",
+                    "https://example.com/success",
+                    "https://example.com/cancel",
+                    "stripe"
+            );
 
-## Type Definitions
+            System.out.println("Checkout URL: " + checkout.getUrl());
 
-The Java SDK provides comprehensive type definitions with builder patterns for all operations:
+            var tracked = client.getUsage().trackUsage(customer.getId(), "sand-ft-messages", 1, null);
 
-```java
-// Core configuration with builder pattern
-public class Config {
-    private final String apiKey;
-    private final String baseUrl;
-    private final HttpClient httpClient;
-    private final Executor executor;
-    private final String userAgent;
+            System.out.println("Added this time: " + tracked.getAdded());
+            System.out.println("Total used: " + tracked.getUsed());
+            System.out.println("Track idempotency key: " + tracked.getIdempotencyKey());
 
-    public static class Builder {
-        private String apiKey;
-        private String baseUrl = "https://api.plugnpay.dev";
-        private HttpClient httpClient;
-        private Executor executor;
-        private String userAgent = "PlugnPay-Java/1.0.0";
+            var usage = client.getUsage().getUsage(customer.getId(), "sand-ft-messages");
 
-        public Builder apiKey(String apiKey) { this.apiKey = apiKey; return this; }
-        public Builder baseUrl(String baseUrl) { this.baseUrl = baseUrl; return this; }
-        public Builder httpClient(HttpClient httpClient) { this.httpClient = httpClient; return this; }
-        public Builder executor(Executor executor) { this.executor = executor; return this; }
-        public Builder userAgent(String userAgent) { this.userAgent = userAgent; return this; }
 
-        public Config build() {
-            return new Config(this);
+            System.out.println("Used: " + usage.getUsed());
+            System.out.println("Limit: " + usage.getLimit());
         }
     }
 }
-
-// Payment provider enum
-public enum Provider {
-    STRIPE("stripe");
-
-    private final String value;
-    Provider(String value) { this.value = value; }
-    public String getValue() { return value; }
-}
-
-// Request/Response builders for type safety
-public class GetCustomerRequest {
-    private final String cusId;
-    private final String email;
-    private final String name;
-
-    public static Builder builder() { return new Builder(); }
-
-    public static class Builder {
-        // Builder implementation with fluent API
-    }
-}
-
-// Complete type definitions for all API operations...
 ```
 
 This completes the comprehensive PlugnPay Java SDK documentation. The SDK provides enterprise-grade patterns with CompletableFuture, reactive programming, and comprehensive type safety for all your payment and subscription management needs in Java applications.
