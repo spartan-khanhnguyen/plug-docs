@@ -58,7 +58,7 @@ Authentication is handled via an API key that must start with `pk_test_` (for te
 
 **Environment Variable (Recommended):**
 ```bash
-export PLUGNPAY_API_KEY="pk_test_xxxxxxxxxx"
+export SNAPPAY_API_KEY="pk_test_xxxxxxxxxx"
 ```
 
 **Direct Configuration:**
@@ -1045,7 +1045,7 @@ public class SnapPayProperties {
 **application.yml:**
 ```yaml
 snappay:
-  api-key: ${PLUGNPAY_API_KEY}
+  api-key: ${SNAPPAY_API_KEY}
   base-url: https://api.snappay.dev
 ```
 
@@ -1147,7 +1147,7 @@ public class SnapPayProducer {
 
 **application.properties:**
 ```properties
-snappay.api-key=${PLUGNPAY_API_KEY}
+snappay.api-key=${SNAPPAY_API_KEY}
 snappay.base-url=https://api.snappay.dev
 ```
 

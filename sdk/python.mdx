@@ -35,7 +35,7 @@ Authentication is handled via an API key that must start with `pk_test_` (for te
 
 **Environment Variable (Recommended):**
 ```bash
-export PLUGNPAY_API_KEY="pk_test_xxxxxxxxxx"
+export SNAPPAY_API_KEY="pk_test_xxxxxxxxxx"
 ```
 
 **Direct Configuration:**
@@ -345,23 +345,6 @@ event = SSEEvent(
     },
     created_at="2024-01-01T10:00:00Z"        # Event timestamp
 )
-
-# vs. what you'd get with raw Stripe webhooks:
-# {
-#   "id": "evt_stripe_raw_123",
-#   "object": "event",
-#   "api_version": "2020-08-27",
-#   "created": 1609459200,
-#   "data": {
-#     "object": {
-#       "id": "sub_stripe_456",
-#       "object": "subscription",
-#       ... 50+ more fields
-#     }
-#   },
-#   "type": "customer.subscription.created",
-#   ... many more fields
-# }
 ```
 
 ### Advanced Event Configuration
