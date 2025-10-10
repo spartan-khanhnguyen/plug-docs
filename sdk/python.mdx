@@ -1,11 +1,11 @@
 ---
 title: Python SDK
-description: Complete guide for integrating PlugnPay with Python applications using async patterns
+description: Complete guide for integrating SnapPay with Python applications using async patterns
 ---
 
 ## Overview
 
-The PlugnPay Python SDK provides a comprehensive, async-first interface for integrating payment processing, subscription management, and real-time event streaming into your Python applications. Built with modern asyncio patterns and type safety, it offers seamless integration with PlugnPay's complete platform.
+The SnapPay Python SDK provides a comprehensive, async-first interface for integrating payment processing, subscription management, and real-time event streaming into your Python applications. Built with modern asyncio patterns and type safety, it offers seamless integration with SnapPay's complete platform.
 
 **Requirements:** Python 3.8+
 
@@ -22,7 +22,7 @@ The PlugnPay Python SDK provides a comprehensive, async-first interface for inte
 ## Installation
 
 ```bash
-pip install plugnpay
+pip install snappay
 ```
 
 ## Configuration & Initialization
@@ -41,15 +41,15 @@ export PLUGNPAY_API_KEY="pk_test_xxxxxxxxxx"
 **Direct Configuration:**
 ```python
 import asyncio
-from plugnpay import PlugnPay
+from snappay import SnapPay
 
 async def main():
     # Using environment variable (recommended)
-    async with PlugnPay() as client:
+    async with SnapPay() as client:
         customer = await client.get_customer("cus_123", email="user@example.com")
 
     # Using direct API key
-    async with PlugnPay(api_key="pk_test_xxxxxxxxxx") as client:
+    async with SnapPay(api_key="pk_test_xxxxxxxxxx") as client:
         customer = await client.get_customer("cus_123", email="user@example.com")
 
 asyncio.run(main())
@@ -58,16 +58,16 @@ asyncio.run(main())
 ### Advanced Configuration
 
 ```python
-from plugnpay import PlugnPay, PlugnPayConfig
+from snappay import SnapPay, SnapPayConfig
 
-config = PlugnPayConfig(
+config = SnapPayConfig(
     api_key="pk_test_xxxxxxxxxx",
-    base_url="https://api.plugnpay.dev",  # Custom base URL
+    base_url="https://api.snappay.dev",  # Custom base URL
     timeout=30.0,  # Request timeout in seconds
     user_agent="MyApp/1.0.0",  # Custom user agent
 )
 
-async with PlugnPay(config=config) as client:
+async with SnapPay(config=config) as client:
     # Use configured client
     pass
 ```
@@ -83,7 +83,7 @@ All methods are async coroutines and must be called with `await`. The SDK uses a
 Retrieves or creates a customer record (upsert logic).
 
 ```python
-async with PlugnPay() as client:
+async with SnapPay() as client:
     customer = await client.get_customer(
         cusId="cus_123",
         email="user@example.com",
@@ -98,7 +98,7 @@ async with PlugnPay() as client:
 - `name` (Optional[str]): Customer full name
 
 **Returns:** `Customer` object with:
-- `customer_id` (str): PlugnPay customer ID
+- `customer_id` (str): SnapPay customer ID
 - `email` (str): Customer email
 - `name` (Optional[str]): Customer name
 - `status` (str): Customer account status
@@ -114,9 +114,9 @@ async with PlugnPay() as client:
 Creates a payment checkout session URL for customer purchases.
 
 ```python
-from plugnpay import Provider
+from snappay import Provider
 
-async with PlugnPay() as client:
+async with SnapPay() as client:
     session = await client.create_checkout_session(
         customer_id="cus_123",
         product_id="premium-plan",
@@ -130,8 +130,8 @@ async with PlugnPay() as client:
 ```
 
 **Parameters:**
-- `customer_id` (str): PlugnPay customer ID
-- `product_id` (str): Product ID from your PlugnPay dashboard
+- `customer_id` (str): SnapPay customer ID
+- `product_id` (str): Product ID from your SnapPay dashboard
 - `success_url` (str): URL to redirect after successful payment
 - `cancel_url` (Optional[str]): URL to redirect on cancellation
 - `provider` (Provider): Payment provider (defaults to STRIPE)
@@ -153,7 +153,7 @@ async with PlugnPay() as client:
 Checks if a customer has access to a specific feature based on their subscription and usage limits.
 
 ```python
-async with PlugnPay() as client:
+async with SnapPay() as client:
     access = await client.check_access(
         customer_id="cus_123",
         feature_id="premium-features"
@@ -170,7 +170,7 @@ async with PlugnPay() as client:
 ```
 
 **Parameters:**
-- `customer_id` (str): PlugnPay customer ID
+- `customer_id` (str): SnapPay customer ID
 - `feature_id` (str): Feature identifier
 
 **Returns:** `AccessCheck` object with:
@@ -191,7 +191,7 @@ async with PlugnPay() as client:
 Reports usage for a metered feature. This action is idempotent to prevent duplicate tracking.
 
 ```python
-async with PlugnPay() as client:
+async with SnapPay() as client:
     result = await client.track_usage(
         customer_id="cus_123",
         feature_id="ai-messages",
@@ -202,7 +202,7 @@ async with PlugnPay() as client:
 ```
 
 **Parameters:**
-- `customer_id` (str): PlugnPay customer ID
+- `customer_id` (str): SnapPay customer ID
 - `feature_id` (str): Feature identifier for usage tracking
 - `usage` (Union[int, float]): Usage amount to track
 - `idempotency_key` (Optional[str]): Prevents duplicate tracking
@@ -214,7 +214,7 @@ async with PlugnPay() as client:
 Retrieves current usage details for a customer's feature.
 
 ```python
-async with PlugnPay() as client:
+async with SnapPay() as client:
     usage = await client.get_usage(
         customer_id="cus_123",
         feature_id="ai-messages"
@@ -225,14 +225,14 @@ async with PlugnPay() as client:
 ```
 
 **Parameters:**
-- `customer_id` (str): PlugnPay customer ID
+- `customer_id` (str): SnapPay customer ID
 - `feature_id` (str): Feature identifier
 
 **Returns:** `GetUsageResponse` object with current usage and limits.
 
 ## Real-time Event Handling
 
-**Say goodbye to webhook hell!** PlugnPay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE).
+**Say goodbye to webhook hell!** SnapPay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE).
 
 ### 🚫 What You DON'T Need:
 - **No webhook endpoints** to create and maintain
@@ -250,17 +250,17 @@ async with PlugnPay() as client:
 
 ### Stream Events (Async Generator)
 
-Simply iterate over events as they arrive - PlugnPay handles all the webhook complexity behind the scenes:
+Simply iterate over events as they arrive - SnapPay handles all the webhook complexity behind the scenes:
 
 ```python
 import asyncio
-from plugnpay import PlugnPay
+from snappay import SnapPay
 
 async def main():
-    async with PlugnPay() as client:
+    async with SnapPay() as client:
         print("Listening for payment events (no webhooks needed!)...")
 
-        # PlugnPay processes Stripe/PayPal webhooks and sends you clean events
+        # SnapPay processes Stripe/PayPal webhooks and sends you clean events
         async for event in client.stream_events():
             print(f"Event: {event.webhook_event_type}")
             print(f"Customer: {event.customer_id}")
@@ -280,11 +280,11 @@ asyncio.run(main())
 
 ### Event Handlers
 
-Set up handlers for specific payment events - PlugnPay converts complex webhook payloads into simple, actionable events:
+Set up handlers for specific payment events - SnapPay converts complex webhook payloads into simple, actionable events:
 
 ```python
 import asyncio
-from plugnpay import PlugnPay
+from snappay import SnapPay
 
 def handle_new_subscription(event):
     """Called when customer completes subscription purchase"""
@@ -292,7 +292,7 @@ def handle_new_subscription(event):
     print(f"🎉 New subscriber: {customer_id}")
 
     # Immediately provision access - no webhook complexity!
-    # PlugnPay already verified the payment and processed the webhook
+    # SnapPay already verified the payment and processed the webhook
     provision_premium_access(customer_id)
     send_welcome_email(customer_id)
 
@@ -312,13 +312,13 @@ def handle_failed_payment(event):
     # Notify customer, pause service, handle dunning, etc.
 
 async def main():
-    async with PlugnPay() as client:
+    async with SnapPay() as client:
         # No webhook setup needed - just register your handlers
         client.on_event("subscription.created", handle_new_subscription)
         client.on_event("payment_intent.succeeded", handle_successful_payment)
         client.on_event("payment_intent.payment_failed", handle_failed_payment)
 
-        # Start receiving events (PlugnPay handles all webhook processing)
+        # Start receiving events (SnapPay handles all webhook processing)
         await client.start_events()
 
         print("🚀 Listening for payment events - webhook-free!")
@@ -329,10 +329,10 @@ asyncio.run(main())
 
 ### Event Structure
 
-PlugnPay transforms raw webhook payloads from payment providers into clean, structured `SSEEvent` objects:
+SnapPay transforms raw webhook payloads from payment providers into clean, structured `SSEEvent` objects:
 
 ```python
-from plugnpay.types import SSEEvent
+from snappay.types import SSEEvent
 
 # What you receive (clean, structured)
 event = SSEEvent(
@@ -370,7 +370,7 @@ Configure reconnection and filtering behavior:
 
 ```python
 async def main():
-    async with PlugnPay() as client:
+    async with SnapPay() as client:
         # Configure SSE client
         sse_client = client.events(
             reconnect_interval=5,  # Seconds between reconnection attempts
@@ -390,12 +390,12 @@ asyncio.run(main())
 
 ### Production-Ready Event Handling
 
-Here's a complete example showing how PlugnPay eliminates webhook complexity for a SaaS application:
+Here's a complete example showing how SnapPay eliminates webhook complexity for a SaaS application:
 
 ```python
 import asyncio
 import logging
-from plugnpay import PlugnPay
+from snappay import SnapPay
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -444,7 +444,7 @@ def handle_subscription_cancelled(event):
 
 async def run_payment_processor():
     """Main application with webhook-free payment processing"""
-    async with PlugnPay() as client:
+    async with SnapPay() as client:
         logger.info("🚀 Starting payment processor (no webhooks needed)")
 
         # Register all payment event handlers
@@ -454,7 +454,7 @@ async def run_payment_processor():
         client.on_event("invoice.payment.succeeded", handle_payment_succeeded)
         client.on_event("invoice.payment.failed", lambda e: handle_payment_failure(e.customer_id))
 
-        # Start processing events - PlugnPay handles all webhook complexity
+        # Start processing events - SnapPay handles all webhook complexity
         await client.start_events()
 
         logger.info("✨ Payment processor running - webhook-free architecture!")
@@ -503,7 +503,7 @@ The SDK provides comprehensive type definitions using `typing.TypedDict` for ful
 
 ```python
 from typing import TypedDict, Optional, Union, Dict, Any
-from plugnpay.types import (
+from snappay.types import (
     Customer, CheckoutSession, AccessCheck,
     TrackUsageResponse, GetUsageResponse, Provider, SSEEvent
 )
@@ -562,14 +562,14 @@ The SDK provides a comprehensive exception hierarchy for robust error handling:
 
 ```python
 import asyncio
-from plugnpay import (
-    PlugnPay, PlugnPayError, AuthenticationError,
+from snappay import (
+    SnapPay, SnapPayError, AuthenticationError,
     ValidationError, RateLimitError, NotFoundError,
     ConflictError, PaymentError, ServerError
 )
 
 async def comprehensive_error_handling():
-    async with PlugnPay() as client:
+    async with SnapPay() as client:
         try:
             customer = await client.get_customer("cus_123", email="test@example.com")
 
@@ -594,8 +594,8 @@ async def comprehensive_error_handling():
         except ServerError as e:
             print(f"Server error: {e}")
 
-        except PlugnPayError as e:
-            print(f"General PlugnPay error: {e}")
+        except SnapPayError as e:
+            print(f"General SnapPay error: {e}")
 
         except Exception as e:
             print(f"Unexpected error: {e}")
@@ -606,7 +606,7 @@ asyncio.run(comprehensive_error_handling())
 ### Exception Hierarchy
 
 ```python
-PlugnPayError                    # Base exception
+SnapPayError                    # Base exception
 ├── AuthenticationError          # Invalid API key or authentication
 ├── ValidationError              # Invalid parameters or request data
 ├── RateLimitError              # API rate limit exceeded
@@ -622,10 +622,10 @@ Here's a comprehensive example showing all major SDK features:
 
 ```python
 import asyncio
-from plugnpay import PlugnPay, Provider
+from snappay import SnapPay, Provider
 
 async def main():
-    async with PlugnPay() as client:
+    async with SnapPay() as client:
         try:
             # 1. Customer Management
             customer = await client.get_customer(
@@ -679,7 +679,7 @@ async def main():
 
 async def with_real_time_events():
     """Example with real-time event handling"""
-    async with PlugnPay() as client:
+    async with SnapPay() as client:
         # Set up event handlers
         client.on_event("subscription.created",
                        lambda e: print(f"New subscription for {e.customer_id}"))
@@ -710,7 +710,7 @@ For more advanced usage, you can access services directly:
 
 ```python
 async def advanced_usage():
-    async with PlugnPay() as client:
+    async with SnapPay() as client:
         # Access individual services
         customer_service = client.customers
         checkout_service = client.checkout
@@ -722,4 +722,4 @@ async def advanced_usage():
         access = await access_service.check_access("cus_123", "feature_123")
 ```
 
-This completes the PlugnPay Python SDK documentation. The SDK provides a powerful, type-safe, and async-first interface for all your payment and subscription management needs.
+This completes the SnapPay Python SDK documentation. The SDK provides a powerful, type-safe, and async-first interface for all your payment and subscription management needs.

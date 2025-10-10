@@ -1,11 +1,11 @@
 ---
 title: JavaScript SDK
-description: Complete guide for integrating PlugnPay with JavaScript/Node.js applications using modern async patterns
+description: Complete guide for integrating SnapPay with JavaScript/Node.js applications using modern async patterns
 ---
 
 ## Overview
 
-The PlugnPay JavaScript SDK provides a comprehensive interface for integrating payment processing, subscription management, and real-time event streaming into your JavaScript/Node.js applications. Built with modern async/await patterns and robust error handling, it offers seamless integration with PlugnPay's complete platform.
+The SnapPay JavaScript SDK provides a comprehensive interface for integrating payment processing, subscription management, and real-time event streaming into your JavaScript/Node.js applications. Built with modern async/await patterns and robust error handling, it offers seamless integration with SnapPay's complete platform.
 
 **Requirements:** Node.js 18+
 
@@ -22,7 +22,7 @@ The PlugnPay JavaScript SDK provides a comprehensive interface for integrating p
 ## Installation
 
 ```bash
-npm install @plugnpay/sdk
+npm install @snappay/sdk
 ```
 
 ## Configuration & Initialization
@@ -40,13 +40,13 @@ export PLUGNPAY_API_KEY="pk_test_xxxxxxxxxx"
 
 **Direct Configuration:**
 ```javascript
-import { PlugnPay } from '@plugnpay/sdk';
+import { SnapPay } from '@snappay/sdk';
 
 // Using environment variable (recommended)
-const client = new PlugnPay();
+const client = new SnapPay();
 
 // Using direct API key
-const clientWithKey = new PlugnPay({
+const clientWithKey = new SnapPay({
   apiKey: "pk_test_xxxxxxxxxx"
 });
 ```
@@ -54,11 +54,11 @@ const clientWithKey = new PlugnPay({
 ### Advanced Configuration
 
 ```javascript
-import { PlugnPay } from '@plugnpay/sdk';
+import { SnapPay } from '@snappay/sdk';
 
-const client = new PlugnPay({
+const client = new SnapPay({
   apiKey: "pk_test_xxxxxxxxxx",
-  baseUrl: "https://api.plugnpay.dev",  // Custom base URL
+  baseUrl: "https://api.snappay.dev",  // Custom base URL
   timeout: 30000,  // Request timeout in milliseconds
 });
 ```
@@ -88,7 +88,7 @@ console.log(`Customer ID: ${customer.customer_id}`);
 - `name` (string, optional): Customer full name
 
 **Returns:** `Customer` object with:
-- `customer_id` (string): PlugnPay customer ID
+- `customer_id` (string): SnapPay customer ID
 - `email` (string): Customer email
 - `name` (string): Customer name
 - `status` (string): Customer account status
@@ -101,7 +101,7 @@ console.log(`Customer ID: ${customer.customer_id}`);
 Creates a payment checkout session URL for customer purchases.
 
 ```javascript
-import { Provider } from '@plugnpay/sdk';
+import { Provider } from '@snappay/sdk';
 
 const session = await client.createCheckoutSession({
   customer_id: "cus_123",
@@ -116,8 +116,8 @@ console.log(`Checkout URL: ${session.url}`);
 ```
 
 **Parameters:**
-- `customer_id` (string): PlugnPay customer ID
-- `product_id` (string): Product ID from your PlugnPay dashboard
+- `customer_id` (string): SnapPay customer ID
+- `product_id` (string): Product ID from your SnapPay dashboard
 - `success_url` (string): URL to redirect after successful payment
 - `cancel_url` (string, optional): URL to redirect on cancellation
 - `provider` (Provider): Payment provider (defaults to STRIPE)
@@ -153,7 +153,7 @@ if (access.has_access) {
 ```
 
 **Parameters:**
-- `customer_id` (string): PlugnPay customer ID
+- `customer_id` (string): SnapPay customer ID
 - `feature_id` (string): Feature identifier
 
 **Returns:** `AccessCheck` object with:
@@ -184,7 +184,7 @@ console.log(`Usage tracked successfully: ${result.success}`);
 ```
 
 **Parameters:**
-- `customer_id` (string): PlugnPay customer ID
+- `customer_id` (string): SnapPay customer ID
 - `feature_id` (string): Feature identifier for usage tracking
 - `usage` (number): Usage amount to track
 - `idempotency_key` (string, optional): Prevents duplicate tracking
@@ -206,14 +206,14 @@ console.log(`Limit: ${usage.limit}`);
 ```
 
 **Parameters:**
-- `customer_id` (string): PlugnPay customer ID
+- `customer_id` (string): SnapPay customer ID
 - `feature_id` (string): Feature identifier
 
 **Returns:** `GetUsageResponse` object with current usage and limits.
 
 ## Real-time Event Handling
 
-**Say goodbye to webhook hell!** PlugnPay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE).
+**Say goodbye to webhook hell!** SnapPay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE).
 
 ### 🚫 What You DON'T Need:
 - **No webhook endpoints** to create and maintain
@@ -231,16 +231,16 @@ console.log(`Limit: ${usage.limit}`);
 
 ### Stream Events (Async Iterator)
 
-Simply iterate over events as they arrive - PlugnPay handles all the webhook complexity behind the scenes:
+Simply iterate over events as they arrive - SnapPay handles all the webhook complexity behind the scenes:
 
 ```javascript
-import { PlugnPay } from '@plugnpay/sdk';
+import { SnapPay } from '@snappay/sdk';
 
 async function main() {
-  const client = new PlugnPay();
+  const client = new SnapPay();
   console.log("Listening for payment events (no webhooks needed!)...");
 
-  // PlugnPay processes Stripe/PayPal webhooks and sends you clean events
+  // SnapPay processes Stripe/PayPal webhooks and sends you clean events
   for await (const event of client.streamEvents()) {
     console.log(`Event: ${event.webhook_event_type}`);
     console.log(`Customer: ${event.customer_id}`);
@@ -262,10 +262,10 @@ main().catch(console.error);
 
 ### Event Handlers
 
-Set up handlers for specific payment events - PlugnPay converts complex webhook payloads into simple, actionable events:
+Set up handlers for specific payment events - SnapPay converts complex webhook payloads into simple, actionable events:
 
 ```javascript
-import { PlugnPay } from '@plugnpay/sdk';
+import { SnapPay } from '@snappay/sdk';
 
 function handleNewSubscription(event) {
   // Called when customer completes subscription purchase
@@ -273,7 +273,7 @@ function handleNewSubscription(event) {
   console.log(`🎉 New subscriber: ${customer_id}`);
 
   // Immediately provision access - no webhook complexity!
-  // PlugnPay already verified the payment and processed the webhook
+  // SnapPay already verified the payment and processed the webhook
   provisionPremiumAccess(customer_id);
   sendWelcomeEmail(customer_id);
 }
@@ -296,14 +296,14 @@ function handleFailedPayment(event) {
 }
 
 async function main() {
-  const client = new PlugnPay();
+  const client = new SnapPay();
 
   // No webhook setup needed - just register your handlers
   client.on("subscription.created", handleNewSubscription);
   client.on("payment_intent.succeeded", handleSuccessfulPayment);
   client.on("payment_intent.payment_failed", handleFailedPayment);
 
-  // Start receiving events (PlugnPay handles all webhook processing)
+  // Start receiving events (SnapPay handles all webhook processing)
   await client.startEvents();
 
   console.log("🚀 Listening for payment events - webhook-free!");
@@ -315,7 +315,7 @@ main().catch(console.error);
 
 ### Event Structure
 
-PlugnPay transforms raw webhook payloads from payment providers into clean, structured `SSEEvent` objects:
+SnapPay transforms raw webhook payloads from payment providers into clean, structured `SSEEvent` objects:
 
 ```javascript
 // What you receive (clean, structured)
@@ -354,7 +354,7 @@ Configure reconnection and filtering behavior:
 
 ```javascript
 async function main() {
-  const client = new PlugnPay();
+  const client = new SnapPay();
 
   // Configure SSE client
   const sseClient = client.events({
@@ -375,10 +375,10 @@ async function main() {
 
 ### Production-Ready Event Handling
 
-Here's a complete example showing how PlugnPay eliminates webhook complexity for a SaaS application:
+Here's a complete example showing how SnapPay eliminates webhook complexity for a SaaS application:
 
 ```javascript
-import { PlugnPay } from '@plugnpay/sdk';
+import { SnapPay } from '@snappay/sdk';
 
 // Configure logging
 const logger = console;
@@ -430,7 +430,7 @@ function handleSubscriptionCancelled(event) {
 
 async function runPaymentProcessor() {
   // Main application with webhook-free payment processing
-  const client = new PlugnPay();
+  const client = new SnapPay();
   logger.info("🚀 Starting payment processor (no webhooks needed)");
 
   // Register all payment event handlers
@@ -440,7 +440,7 @@ async function runPaymentProcessor() {
   client.on("invoice.payment.succeeded", handlePaymentSucceeded);
   client.on("invoice.payment.failed", (e) => handlePaymentFailure(e.customer_id));
 
-  // Start processing events - PlugnPay handles all webhook complexity
+  // Start processing events - SnapPay handles all webhook complexity
   await client.startEvents();
 
   logger.info("✨ Payment processor running - webhook-free architecture!");
@@ -492,12 +492,12 @@ The SDK provides comprehensive error handling with typed exceptions:
 
 ```javascript
 import {
-  PlugnPay, PlugnPayError, AuthenticationError,
+  SnapPay, SnapPayError, AuthenticationError,
   ValidationError, RateLimitError, NotFoundError
-} from '@plugnpay/sdk';
+} from '@snappay/sdk';
 
 async function comprehensiveErrorHandling() {
-  const client = new PlugnPay();
+  const client = new SnapPay();
 
   try {
     const customer = await client.getCustomer({
@@ -513,8 +513,8 @@ async function comprehensiveErrorHandling() {
       console.log(`Rate limit exceeded: ${error.message}`);
     } else if (error instanceof NotFoundError) {
       console.log(`Resource not found: ${error.message}`);
-    } else if (error instanceof PlugnPayError) {
-      console.log(`General PlugnPay error: ${error.message}`);
+    } else if (error instanceof SnapPayError) {
+      console.log(`General SnapPay error: ${error.message}`);
     } else {
       console.log(`Unexpected error: ${error.message}`);
     }
@@ -527,7 +527,7 @@ comprehensiveErrorHandling().catch(console.error);
 ### Exception Hierarchy
 
 ```javascript
-PlugnPayError                    // Base exception
+SnapPayError                    // Base exception
 ├── AuthenticationError          // Invalid API key or authentication
 ├── ValidationError              // Invalid parameters or request data
 ├── RateLimitError              // API rate limit exceeded
@@ -540,10 +540,10 @@ PlugnPayError                    // Base exception
 Here's a comprehensive example showing all major SDK features:
 
 ```javascript
-import { PlugnPay, Provider } from '@plugnpay/sdk';
+import { SnapPay, Provider } from '@snappay/sdk';
 
 async function main() {
-  const client = new PlugnPay();
+  const client = new SnapPay();
 
   try {
     // 1. Customer Management
@@ -600,7 +600,7 @@ async function main() {
 
 async function withRealTimeEvents() {
   // Example with real-time event handling
-  const client = new PlugnPay();
+  const client = new SnapPay();
 
   // Set up event handlers
   client.on("subscription.created",
@@ -628,4 +628,4 @@ main().catch(console.error);
 // withRealTimeEvents().catch(console.error);
 ```
 
-This completes the PlugnPay JavaScript SDK documentation. The SDK provides a powerful, modern interface for all your payment and subscription management needs with JavaScript and Node.js applications.
+This completes the SnapPay JavaScript SDK documentation. The SDK provides a powerful, modern interface for all your payment and subscription management needs with JavaScript and Node.js applications.

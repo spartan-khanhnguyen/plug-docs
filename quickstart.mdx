@@ -1,17 +1,17 @@
 ---
 title: "Quickstart"
-description: "Get up and running with PlugnPay in minutes"
+description: "Get up and running with SnapPay in minutes"
 ---
 
-# Get Started with PlugnPay
+# Get Started with SnapPay
 
-This guide will help you integrate PlugnPay into your application quickly and start processing payments.
+This guide will help you integrate SnapPay into your application quickly and start processing payments.
 
 ## Step 1: Create product
 
 <AccordionGroup>
-  <Accordion icon="key" title="Create your PlugnPay account">
-    1. Visit [PlugnPay Dashboard](https://plugnpay.dev) and create your account
+  <Accordion icon="key" title="Create your SnapPay account">
+    1. Visit [SnapPay Dashboard](https://app.snappay.dev) and create your account
     2. Navigate to the Products page
     3. Enter product information, set up feature and pricing
   </Accordion>
@@ -22,16 +22,15 @@ This guide will help you integrate PlugnPay into your application quickly and st
 
 <AccordionGroup>
   <Accordion icon="key" title="Syncing">
-    1. Navigate to the Stripe Connection section in your dashboard
-    2. Select the environment you want to use: Sandbox for testing, Production for real sales
-    3. Enter your Stripe API key and Webhook key (optional) to sync
+    1. Navigate to the Payment section in your dashboard
+    2. Perform KYC in order to accept payment
   </Accordion>
 </AccordionGroup>
 <Note>
-  Your Stripe API keys will be encrypted and be safe
+  You need to finish the verification process to use
 </Note>
 
-## Step 3: Get PlugnPay API Key
+## Step 3: Get SnapPay API Key
 
 <AccordionGroup>
   <Accordion icon="key" title="Get API key">
@@ -40,12 +39,6 @@ This guide will help you integrate PlugnPay into your application quickly and st
   </Accordion>
 </AccordionGroup>
 
-<Warning>
-
-If you re-generate API keys, you must update your client's sdk implementation to use new key.
-
-</Warning>
-
 ## Step 4: Install SDK
 
 Choose your preferred programming language and install the corresponding SDK:
@@ -53,24 +46,24 @@ Choose your preferred programming language and install the corresponding SDK:
 <AccordionGroup>
   <Accordion icon="code" title="JavaScript/Node.js">
     ```bash
-    npm install @plugnpay/sdk
+    npm install @SnapPay/sdk
     ```
   </Accordion>
   <Accordion icon="code" title="Python">
     ```bash
-    pip install plugnpay
+    pip install snappay
     ```
   </Accordion>
   <Accordion icon="code" title="Go">
     ```bash
-    go get github.com/plugnpay/plugnpay-go
+    go get github.com/snappay/snappay-go
     ```
   </Accordion>
   <Accordion icon="code" title="Java">
     ```xml
     <dependency>
-        <groupId>dev.plugnpay</groupId>
-        <artifactId>plugnpay-java</artifactId>
+        <groupId>dev.snappay</groupId>
+        <artifactId>snappay-java</artifactId>
         <version>1.0.0</version>
     </dependency>
     ```
@@ -79,10 +72,10 @@ Choose your preferred programming language and install the corresponding SDK:
 
 ## Step 5: Initialize Client
 
-Set up your PlugnPay client with your API key:
+Set up your SnapPay client with your API key:
 
 <Note>
-  Replace `YOUR_API_KEY` with your actual PlugnPay API key from the dashboard.
+  Replace `YOUR_API_KEY` with your actual SnapPay API key from the dashboard.
 </Note>
 
 ## Step 6: Create Your First Checkout
@@ -108,5 +101,5 @@ Now that you have the basics set up, explore our SDK documentation for creating 
 </CardGroup>
 
 <Tip>
-  **Need help?** Join our [Discord community](https://discord.com) or contact [support](mailto:hi@plugnpay.dev).
+  **Need help?** Join our [Discord community](https://discord.com) or contact [support](mailto:hi@SnapPay.dev).
 </Tip>

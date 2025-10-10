@@ -1,11 +1,11 @@
 ---
 title: Java SDK
-description: Complete guide for integrating PlugnPay with Java applications using modern asynchronous patterns and reactive programming
+description: Complete guide for integrating SnapPay with Java applications using modern asynchronous patterns and reactive programming
 ---
 
 ## Overview
 
-The PlugnPay Java SDK provides a comprehensive, enterprise-grade interface for integrating payment processing, subscription management, and real-time event streaming into your Java applications. Built with modern Java patterns including CompletableFuture for asynchronous operations, reactive streams for event handling, and comprehensive type safety, it offers seamless integration with PlugnPay's complete platform.
+The SnapPay Java SDK provides a comprehensive, enterprise-grade interface for integrating payment processing, subscription management, and real-time event streaming into your Java applications. Built with modern Java patterns including CompletableFuture for asynchronous operations, reactive streams for event handling, and comprehensive type safety, it offers seamless integration with SnapPay's complete platform.
 
 **Requirements:** Java 11+ / Maven or Gradle
 
@@ -26,8 +26,8 @@ The PlugnPay Java SDK provides a comprehensive, enterprise-grade interface for i
 
 ```xml
 <dependency>
-    <groupId>dev.plugnpay</groupId>
-    <artifactId>plugnpay-java</artifactId>
+    <groupId>dev.snappay</groupId>
+    <artifactId>snappay-java</artifactId>
     <version>1.0.0</version>
 </dependency>
 ```
@@ -36,7 +36,7 @@ The PlugnPay Java SDK provides a comprehensive, enterprise-grade interface for i
 
 ```groovy
 dependencies {
-    implementation 'dev.plugnpay:plugnpay-java:1.0.0'
+    implementation 'dev.snappay:snappay-java:1.0.0'
 }
 ```
 
@@ -44,7 +44,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-    implementation("dev.plugnpay:plugnpay-java:1.0.0")
+    implementation("dev.snappay:snappay-java:1.0.0")
 }
 ```
 
@@ -63,17 +63,17 @@ export PLUGNPAY_API_KEY="pk_test_xxxxxxxxxx"
 
 **Direct Configuration:**
 ```java
-import dev.plugnpay.sdk.PlugnPayClient;
-import dev.plugnpay.sdk.Config;
+import dev.snappay.sdk.SnapPayClient;
+import dev.snappay.sdk.Config;
 
 // Using environment variable (recommended)
-PlugnPayClient client = PlugnPayClient.fromEnvironment();
+SnapPayClient client = SnapPayClient.fromEnvironment();
 
 // Using direct API key
 Config config = new Config.Builder()
     .apiKey("pk_test_xxxxxxxxxx") // Required
     .build();
-PlugnPayClient clientWithOptions = new PlugnPayClient(config);
+SnapPayClient clientWithOptions = new SnapPayClient(config);
 ```
 
 ### Advanced Configuration
@@ -84,7 +84,7 @@ import java.util.concurrent.Executors;
 
 Config config = new Config.Builder()
     .apiKey("pk_test_xxxxxxxxxx")
-    .baseUrl("https://api.plugnpay.dev")  // Custom base URL
+    .baseUrl("https://api.snappay.dev")  // Custom base URL
     .httpClient(HttpClient.newBuilder()   // Custom HTTP client
         .connectTimeout(Duration.ofSeconds(30))
         .build())
@@ -92,12 +92,12 @@ Config config = new Config.Builder()
     .userAgent("MyApp/1.0.0")             // Custom user agent
     .build();
 
-PlugnPayClient client = new PlugnPayClient(config);
+SnapPayClient client = new SnapPayClient(config);
 ```
 
 ## Core Methods
 
-All methods return CompletableFuture objects for asynchronous execution and can be chained with standard reactive patterns. They throw typed PlugnPayException subclasses on failure. Models are defined using immutable POJOs with builder patterns.
+All methods return CompletableFuture objects for asynchronous execution and can be chained with standard reactive patterns. They throw typed SnapPayException subclasses on failure. Models are defined using immutable POJOs with builder patterns.
 
 ### Customer Management
 
@@ -140,7 +140,7 @@ System.out.println("Customer ID: " + customer.getCustomerId());
 **Returns:** `CompletableFuture&lt;Customer&gt;`
 ```java
 public class Customer {
-    private final String customerId;  // PlugnPay customer ID
+    private final String customerId;  // SnapPay customer ID
     private final String email;       // Customer email
     private final String name;        // Customer name
     private final String status;      // Customer account status
@@ -162,7 +162,7 @@ public class Customer {
 Creates a payment checkout session URL for customer purchases.
 
 ```java
-import dev.plugnpay.sdk.model.Provider;
+import dev.snappay.sdk.model.Provider;
 
 CreateCheckoutSessionRequest request = CreateCheckoutSessionRequest.builder()
     .customerId("cus_123")
@@ -184,8 +184,8 @@ client.createCheckoutSession(request)
 ```
 
 **Parameters:**
-- `customerId` (String): PlugnPay customer ID
-- `productId` (String): Product ID from your PlugnPay dashboard
+- `customerId` (String): SnapPay customer ID
+- `productId` (String): Product ID from your SnapPay dashboard
 - `successUrl` (String): URL to redirect after successful payment
 - `cancelUrl` (String, optional): URL to redirect on cancellation
 - `provider` (Provider): Payment provider (defaults to STRIPE)
@@ -231,7 +231,7 @@ client.checkAccess("cus_123", "premium-features")
 ```
 
 **Parameters:**
-- `customerId` (String): PlugnPay customer ID
+- `customerId` (String): SnapPay customer ID
 - `featureId` (String): Feature identifier
 
 **Returns:** `CompletableFuture&lt;AccessCheck&gt;`
@@ -278,7 +278,7 @@ client.trackUsage(request)
 ```
 
 **Parameters:**
-- `customerId` (String): PlugnPay customer ID
+- `customerId` (String): SnapPay customer ID
 - `featureId` (String): Feature identifier for usage tracking
 - `usage` (Double): Usage amount to track
 - `idempotencyKey` (String, optional): Prevents duplicate tracking
@@ -314,7 +314,7 @@ client.getUsage("cus_123", "ai-messages")
 ```
 
 **Parameters:**
-- `customerId` (String): PlugnPay customer ID
+- `customerId` (String): SnapPay customer ID
 - `featureId` (String): Feature identifier
 
 **Returns:** `CompletableFuture&lt;GetUsageResponse&gt;`
@@ -332,7 +332,7 @@ public class GetUsageResponse {
 
 ## Real-time Event Handling
 
-**Say goodbye to webhook hell!** PlugnPay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE) using reactive patterns.
+**Say goodbye to webhook hell!** SnapPay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE) using reactive patterns.
 
 ### 🚫 What You DON'T Need:
 - **No webhook endpoints** to create and maintain
@@ -350,7 +350,7 @@ public class GetUsageResponse {
 
 ### Reactive Event Streaming
 
-Simply subscribe to events as they arrive - PlugnPay handles all the webhook complexity behind the scenes:
+Simply subscribe to events as they arrive - SnapPay handles all the webhook complexity behind the scenes:
 
 ```java
 import java.util.concurrent.CompletableFuture;
@@ -358,11 +358,11 @@ import java.util.function.Consumer;
 
 public class EventListenerExample {
     public static void main(String[] args) {
-        PlugnPayClient client = PlugnPayClient.fromEnvironment();
+        SnapPayClient client = SnapPayClient.fromEnvironment();
 
         System.out.println("Listening for payment events (no webhooks needed!)...");
 
-        // PlugnPay processes Stripe/PayPal webhooks and sends you clean events
+        // SnapPay processes Stripe/PayPal webhooks and sends you clean events
         Consumer<Event> eventHandler = event -> {
             System.out.println("Event: " + event.getEventType());
             System.out.println("Customer: " + event.getCustomerId());
@@ -398,7 +398,7 @@ public class EventListenerExample {
 
 ### Event Structure
 
-PlugnPay transforms raw webhook payloads from payment providers into clean, structured event objects:
+SnapPay transforms raw webhook payloads from payment providers into clean, structured event objects:
 
 ```java
 // Event represents a single message from the event stream
@@ -472,19 +472,19 @@ public class Invoice {
 
 ### Production-Ready Event Handling
 
-Here's a complete example showing how PlugnPay eliminates webhook complexity for a SaaS application:
+Here's a complete example showing how SnapPay eliminates webhook complexity for a SaaS application:
 
 ```java
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 public class PaymentProcessor {
-    private final PlugnPayClient client;
+    private final SnapPayClient client;
     private final ExecutorService executorService;
     private CompletableFuture<Void> eventStreamFuture;
 
     public PaymentProcessor() {
-        this.client = PlugnPayClient.fromEnvironment();
+        this.client = SnapPayClient.fromEnvironment();
         this.executorService = Executors.newCachedThreadPool();
     }
 
@@ -686,10 +686,10 @@ public class PaymentProcessor {
 The SDK provides comprehensive error handling with typed exceptions and detailed error contexts:
 
 ```java
-import dev.plugnpay.sdk.exception.*;
+import dev.snappay.sdk.exception.*;
 
 public void comprehensiveErrorHandling() {
-    PlugnPayClient client = PlugnPayClient.fromEnvironment();
+    SnapPayClient client = SnapPayClient.fromEnvironment();
 
     client.getCustomer(GetCustomerRequest.builder()
             .cusId("cus_123")
@@ -721,9 +721,9 @@ public void comprehensiveErrorHandling() {
                 ServerException e = (ServerException) cause;
                 System.err.println("Server error: " + e.getMessage());
                 System.err.println("Status code: " + e.getStatusCode());
-            } else if (cause instanceof PlugnPayException) {
-                PlugnPayException e = (PlugnPayException) cause;
-                System.err.println("General PlugnPay error: " + e.getMessage());
+            } else if (cause instanceof SnapPayException) {
+                SnapPayException e = (SnapPayException) cause;
+                System.err.println("General SnapPay error: " + e.getMessage());
             } else {
                 System.err.println("Unexpected error: " + throwable.getMessage());
             }
@@ -736,7 +736,7 @@ public void comprehensiveErrorHandling() {
 
 ```java
 // Base exception class
-public abstract class PlugnPayException extends RuntimeException {
+public abstract class SnapPayException extends RuntimeException {
     private final int statusCode;
     private final String requestId;
 
@@ -745,31 +745,31 @@ public abstract class PlugnPayException extends RuntimeException {
 }
 
 // Specific exception types
-public class AuthenticationException extends PlugnPayException {
+public class AuthenticationException extends SnapPayException {
     // Invalid API key or authentication failure
 }
 
-public class ValidationException extends PlugnPayException {
+public class ValidationException extends SnapPayException {
     private final Map<String, String> fieldErrors;
 
     public Map<String, String> getFieldErrors() { return fieldErrors; }
 }
 
-public class RateLimitException extends PlugnPayException {
+public class RateLimitException extends SnapPayException {
     private final int retryAfter;  // Seconds to wait before retrying
 
     public int getRetryAfter() { return retryAfter; }
 }
 
-public class NotFoundException extends PlugnPayException {
+public class NotFoundException extends SnapPayException {
     // Resource not found
 }
 
-public class ConflictException extends PlugnPayException {
+public class ConflictException extends SnapPayException {
     // Resource conflict (e.g., duplicate)
 }
 
-public class ServerException extends PlugnPayException {
+public class ServerException extends SnapPayException {
     // Server-side errors (5xx responses)
 }
 ```
@@ -821,12 +821,12 @@ Here's a comprehensive example showing all major SDK features:
 import java.util.concurrent.*;
 import java.util.Map;
 
-public class PlugnPayService {
-    private final PlugnPayClient client;
+public class SnapPayService {
+    private final SnapPayClient client;
     private final ExecutorService executorService;
 
-    public PlugnPayService() {
-        this.client = PlugnPayClient.fromEnvironment();
+    public SnapPayService() {
+        this.client = SnapPayClient.fromEnvironment();
         this.executorService = Executors.newCachedThreadPool();
     }
 
@@ -963,7 +963,7 @@ public abstract class AccessResult {
 // Usage example
 public class IntegrationExample {
     public static void main(String[] args) throws Exception {
-        PlugnPayService plugnPayService = new PlugnPayService();
+        SnapPayService plugnPayService = new SnapPayService();
 
         // Create checkout for a customer
         CompletableFuture<CheckoutResult> checkoutFuture =
@@ -1017,22 +1017,22 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class PlugnPayConfiguration {
+public class SnapPayConfiguration {
 
     @Bean
-    public PlugnPayClient plugnPayClient(PlugnPayProperties properties) {
+    public SnapPayClient plugnPayClient(SnapPayProperties properties) {
         Config config = new Config.Builder()
             .apiKey(properties.getApiKey())
             .baseUrl(properties.getBaseUrl())
             .build();
-        return new PlugnPayClient(config);
+        return new SnapPayClient(config);
     }
 }
 
-@ConfigurationProperties(prefix = "plugnpay")
-public class PlugnPayProperties {
+@ConfigurationProperties(prefix = "snappay")
+public class SnapPayProperties {
     private String apiKey;
-    private String baseUrl = "https://api.plugnpay.dev";
+    private String baseUrl = "https://api.snappay.dev";
 
     // Getters and setters
     public String getApiKey() { return apiKey; }
@@ -1044,9 +1044,9 @@ public class PlugnPayProperties {
 
 **application.yml:**
 ```yaml
-plugnpay:
+snappay:
   api-key: ${PLUGNPAY_API_KEY}
-  base-url: https://api.plugnpay.dev
+  base-url: https://api.snappay.dev
 ```
 
 **Controller Example:**
@@ -1056,12 +1056,12 @@ import org.springframework.http.ResponseEntity;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
-@RequestMapping("/api/plugnpay")
-public class PlugnPayController {
+@RequestMapping("/api/snappay")
+public class SnapPayController {
 
-    private final PlugnPayClient plugnPayClient;
+    private final SnapPayClient plugnPayClient;
 
-    public PlugnPayController(PlugnPayClient plugnPayClient) {
+    public SnapPayController(SnapPayClient plugnPayClient) {
         this.plugnPayClient = plugnPayClient;
     }
 
@@ -1125,30 +1125,30 @@ import javax.enterprise.inject.Produces;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped
-public class PlugnPayProducer {
+public class SnapPayProducer {
 
-    @ConfigProperty(name = "plugnpay.api-key")
+    @ConfigProperty(name = "snappay.api-key")
     String apiKey;
 
-    @ConfigProperty(name = "plugnpay.base-url", defaultValue = "https://api.plugnpay.dev")
+    @ConfigProperty(name = "snappay.base-url", defaultValue = "https://api.snappay.dev")
     String baseUrl;
 
     @Produces
     @ApplicationScoped
-    public PlugnPayClient createPlugnPayClient() {
+    public SnapPayClient createSnapPayClient() {
         Config config = new Config.Builder()
             .apiKey(apiKey)
             .baseUrl(baseUrl)
             .build();
-        return new PlugnPayClient(config);
+        return new SnapPayClient(config);
     }
 }
 ```
 
 **application.properties:**
 ```properties
-plugnpay.api-key=${PLUGNPAY_API_KEY}
-plugnpay.base-url=https://api.plugnpay.dev
+snappay.api-key=${PLUGNPAY_API_KEY}
+snappay.base-url=https://api.snappay.dev
 ```
 
 ### Micronaut Integration
@@ -1161,25 +1161,25 @@ import io.micronaut.context.annotation.Factory;
 import io.micronaut.context.annotation.Value;
 
 @Factory
-public class PlugnPayFactory {
+public class SnapPayFactory {
 
     @Bean
-    public PlugnPayClient plugnPayClient(
-            @Value("${plugnpay.api-key}") String apiKey,
-            @Value("${plugnpay.base-url:https://api.plugnpay.dev}") String baseUrl) {
+    public SnapPayClient plugnPayClient(
+            @Value("${snappay.api-key}") String apiKey,
+            @Value("${snappay.base-url:https://api.snappay.dev}") String baseUrl) {
 
         Config config = new Config.Builder()
             .apiKey(apiKey)
             .baseUrl(baseUrl)
             .build();
-        return new PlugnPayClient(config);
+        return new SnapPayClient(config);
     }
 }
 ```
 
 ## Thread Safety and Concurrency
 
-The `PlugnPayClient` is fully thread-safe and designed for concurrent usage:
+The `SnapPayClient` is fully thread-safe and designed for concurrent usage:
 
 ```java
 import java.util.concurrent.*;
@@ -1188,7 +1188,7 @@ import java.util.stream.IntStream;
 
 public class ConcurrencyExample {
     public static void main(String[] args) throws Exception {
-        PlugnPayClient client = PlugnPayClient.fromEnvironment();
+        SnapPayClient client = SnapPayClient.fromEnvironment();
         ExecutorService executor = Executors.newFixedThreadPool(10);
 
         // Safe to use the same client from multiple threads
@@ -1236,10 +1236,10 @@ public class Config {
 
     public static class Builder {
         private String apiKey;
-        private String baseUrl = "https://api.plugnpay.dev";
+        private String baseUrl = "https://api.snappay.dev";
         private HttpClient httpClient;
         private Executor executor;
-        private String userAgent = "PlugnPay-Java/1.0.0";
+        private String userAgent = "SnapPay-Java/1.0.0";
 
         public Builder apiKey(String apiKey) { this.apiKey = apiKey; return this; }
         public Builder baseUrl(String baseUrl) { this.baseUrl = baseUrl; return this; }
@@ -1278,4 +1278,4 @@ public class GetCustomerRequest {
 // Complete type definitions for all API operations...
 ```
 
-This completes the comprehensive PlugnPay Java SDK documentation. The SDK provides enterprise-grade patterns with CompletableFuture, reactive programming, and comprehensive type safety for all your payment and subscription management needs in Java applications.
+This completes the comprehensive SnapPay Java SDK documentation. The SDK provides enterprise-grade patterns with CompletableFuture, reactive programming, and comprehensive type safety for all your payment and subscription management needs in Java applications.

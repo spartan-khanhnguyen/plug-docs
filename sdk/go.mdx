@@ -1,11 +1,11 @@
 ---
 title: Go SDK
-description: Complete guide for integrating PlugnPay with Go applications using idiomatic Go patterns and concurrency
+description: Complete guide for integrating SnapPay with Go applications using idiomatic Go patterns and concurrency
 ---
 
 ## Overview
 
-The PlugnPay Go SDK provides a comprehensive, idiomatic interface for integrating payment processing, subscription management, and real-time event streaming into your Go applications. Built with modern Go patterns including context support, channel-based concurrency, and explicit error handling, it offers seamless integration with PlugnPay's complete platform.
+The SnapPay Go SDK provides a comprehensive, idiomatic interface for integrating payment processing, subscription management, and real-time event streaming into your Go applications. Built with modern Go patterns including context support, channel-based concurrency, and explicit error handling, it offers seamless integration with snappay's complete platform.
 
 **Requirements:** Go 1.21+
 
@@ -23,7 +23,7 @@ The PlugnPay Go SDK provides a comprehensive, idiomatic interface for integratin
 ## Installation
 
 ```bash
-go get github.com/plugnpay/plugnpay-go
+go get github.com/snappay/snappay-go
 ```
 
 Add to your `go.mod`:
@@ -33,7 +33,7 @@ module your-app
 go 1.21
 
 require (
-    github.com/plugnpay/plugnpay-go v1.0.0
+    github.com/snappay/snappay-go v1.0.0
 )
 ```
 
@@ -47,7 +47,7 @@ Authentication is handled via an API key that must start with `pk_test_` (for te
 
 **Environment Variable (Recommended):**
 ```bash
-export PLUGNPAY_API_KEY="pk_test_xxxxxxxxxx"
+export SNAPPAY_API_KEY="pk_test_xxxxxxxxxx"
 ```
 
 **Direct Configuration:**
@@ -57,18 +57,18 @@ package main
 import (
     "context"
     "log"
-    "github.com/plugnpay/plugnpay-go"
+    "github.com/snappay/snappay-go"
 )
 
 func main() {
     // Using environment variable (recommended)
-    client, err := plugnpay.NewClient(nil)
+    client, err := snappay.NewClient(nil)
     if err != nil {
         log.Fatalf("Failed to create client: %v", err)
     }
 
     // Using direct API key
-    client, err := plugnpay.NewClient(&plugnpay.Config{
+    client, err := snappay.NewClient(&snappay.Config{
         APIKey: "pk_test_xxxxxxxxxx",
     })
     if err != nil {
@@ -82,16 +82,16 @@ func main() {
 ```go
 import "time"
 
-config := &plugnpay.Config{
+config := &snappay.Config{
     APIKey:     "pk_test_xxxxxxxxxx",
-    BaseURL:    "https://api.plugnpay.dev",  // Custom base URL
+    BaseURL:    "https://api.snappay.dev",  // Custom base URL
     HTTPClient: &http.Client{                // Custom HTTP client
         Timeout: 30 * time.Second,
     },
     UserAgent: "MyApp/1.0.0",               // Custom user agent
 }
 
-client, err := plugnpay.NewClient(config)
+client, err := snappay.NewClient(config)
 if err != nil {
     log.Fatalf("Failed to create client: %v", err)
 }
@@ -109,7 +109,7 @@ Retrieves or creates a customer record (upsert logic).
 
 ```go
 ctx := context.Background()
-customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
     CusID: "cus_123",
     Email: "user@example.com",
     Name:  "John Doe", // Optional
@@ -128,7 +128,7 @@ fmt.Printf("Customer ID: %s\n", customer.CustomerID)
 **Returns:** `(*Customer, error)`
 ```go
 type Customer struct {
-    CustomerID string  `json:"customer_id"` // PlugnPay customer ID
+    CustomerID string  `json:"customer_id"` // SnapPay customer ID
     Email      string  `json:"email"`       // Customer email
     Name       *string `json:"name"`        // Customer name (optional)
     Status     string  `json:"status"`      // Customer account status
@@ -145,15 +145,15 @@ type Customer struct {
 Creates a payment checkout session URL for customer purchases.
 
 ```go
-import "github.com/plugnpay/plugnpay-go"
+import "github.com/snappay/snappay-go"
 
 ctx := context.Background()
-session, err := client.CreateCheckoutSession(ctx, plugnpay.CreateCheckoutSessionArgs{
+session, err := client.CreateCheckoutSession(ctx, snappay.CreateCheckoutSessionArgs{
     CustomerID: "cus_123",
     ProductID:  "premium-plan",
     SuccessURL: "https://yourapp.com/success",
     CancelURL:  stringPtr("https://yourapp.com/cancel"), // Optional
-    Provider:   plugnpay.ProviderStripe,                 // Default: ProviderStripe
+    Provider:   snappay.ProviderStripe,                 // Default: ProviderStripe
     Metadata: map[string]string{                         // Optional
         "order_id": "ord_456",
     },
@@ -165,8 +165,8 @@ fmt.Printf("Checkout URL: %s\n", session.URL)
 ```
 
 **Parameters:**
-- `CustomerID` (string): PlugnPay customer ID
-- `ProductID` (string): Product ID from your PlugnPay dashboard
+- `CustomerID` (string): SnapPay customer ID
+- `ProductID` (string): Product ID from your snappay dashboard
 - `SuccessURL` (string): URL to redirect after successful payment
 - `CancelURL` (*string): URL to redirect on cancellation (optional)
 - `Provider` (Provider): Payment provider (defaults to ProviderStripe)
@@ -189,7 +189,7 @@ Checks if a customer has access to a specific feature based on their subscriptio
 
 ```go
 ctx := context.Background()
-access, err := client.CheckAccess(ctx, plugnpay.CheckAccessArgs{
+access, err := client.CheckAccess(ctx, snappay.CheckAccessArgs{
     CustomerID: "cus_123",
     FeatureID:  "premium-features",
 })
@@ -209,7 +209,7 @@ if access.HasAccess {
 ```
 
 **Parameters:**
-- `CustomerID` (string): PlugnPay customer ID
+- `CustomerID` (string): SnapPay customer ID
 - `FeatureID` (string): Feature identifier
 
 **Returns:** `(*AccessCheck, error)`
@@ -235,7 +235,7 @@ Reports usage for a metered feature. This action is idempotent to prevent duplic
 
 ```go
 ctx := context.Background()
-result, err := client.TrackUsage(ctx, plugnpay.TrackUsageArgs{
+result, err := client.TrackUsage(ctx, snappay.TrackUsageArgs{
     CustomerID:     "cus_123",
     FeatureID:      "ai-messages",
     Usage:          1,   // or 1.5 for fractional usage
@@ -248,7 +248,7 @@ fmt.Printf("Usage tracked successfully: %t\n", result.Success)
 ```
 
 **Parameters:**
-- `CustomerID` (string): PlugnPay customer ID
+- `CustomerID` (string): SnapPay customer ID
 - `FeatureID` (string): Feature identifier for usage tracking
 - `Usage` (float64): Usage amount to track
 - `IdempotencyKey` (*string): Prevents duplicate tracking (optional)
@@ -266,7 +266,7 @@ Retrieves current usage details for a customer's feature.
 
 ```go
 ctx := context.Background()
-usage, err := client.GetUsage(ctx, plugnpay.GetUsageArgs{
+usage, err := client.GetUsage(ctx, snappay.GetUsageArgs{
     CustomerID: "cus_123",
     FeatureID:  "ai-messages",
 })
@@ -280,7 +280,7 @@ fmt.Printf("Limit: %s\n", formatUsage(usage.Limit))
 ```
 
 **Parameters:**
-- `CustomerID` (string): PlugnPay customer ID
+- `CustomerID` (string): SnapPay customer ID
 - `FeatureID` (string): Feature identifier
 
 **Returns:** `(*GetUsageResponse, error)`
@@ -294,7 +294,7 @@ type GetUsageResponse struct {
 
 ## Real-time Event Handling
 
-**Say goodbye to webhook hell!** PlugnPay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE) using Go channels.
+**Say goodbye to webhook hell!** snappay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE) using Go channels.
 
 ### 🚫 What You DON'T Need:
 - **No webhook endpoints** to create and maintain
@@ -312,7 +312,7 @@ type GetUsageResponse struct {
 
 ### Channel-Based Event Streaming
 
-Simply receive events from channels as they arrive - PlugnPay handles all the webhook complexity behind the scenes:
+Simply receive events from channels as they arrive - snappay handles all the webhook complexity behind the scenes:
 
 ```go
 package main
@@ -323,7 +323,7 @@ import (
     "log"
     "os/signal"
     "syscall"
-    "github.com/plugnpay/plugnpay-go"
+    "github.com/snappay/snappay-go"
 )
 
 func main() {
@@ -331,14 +331,14 @@ func main() {
     ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
     defer stop()
 
-    client, err := plugnpay.NewClient(nil)
+    client, err := snappay.NewClient(nil)
     if err != nil {
         log.Fatalf("Failed to create client: %v", err)
     }
 
     log.Println("Listening for payment events (no webhooks needed!)...")
 
-    // PlugnPay processes Stripe/PayPal webhooks and sends you clean events
+    // snappay processes Stripe/PayPal webhooks and sends you clean events
     eventCh, errCh, err := client.ListenForEvents(ctx)
     if err != nil {
         log.Fatalf("Failed to start event listener: %v", err)
@@ -361,7 +361,7 @@ func main() {
 
             // Handle purchase completion instantly
             if event.EventType == "subscription.created" {
-                var payload plugnpay.SubscriptionEventData
+                var payload snappay.SubscriptionEventData
                 if err := json.Unmarshal(event.Data, &payload); err != nil {
                     log.Printf("Error unmarshaling: %v", err)
                     continue
@@ -380,7 +380,7 @@ func main() {
 
 ### Event Structure
 
-PlugnPay transforms raw webhook payloads from payment providers into clean, structured event objects:
+snappay transforms raw webhook payloads from payment providers into clean, structured event objects:
 
 ```go
 // Event represents a single message from the event stream
@@ -425,7 +425,7 @@ type Invoice struct {
 
 ### Production-Ready Event Handling
 
-Here's a complete example showing how PlugnPay eliminates webhook complexity for a SaaS application:
+Here's a complete example showing how snappay eliminates webhook complexity for a SaaS application:
 
 ```go
 package main
@@ -438,17 +438,17 @@ import (
     "sync"
     "syscall"
     "time"
-    "github.com/plugnpay/plugnpay-go"
+    "github.com/snappay/snappay-go"
 )
 
 type PaymentProcessor struct {
-    client *plugnpay.Client
+    client *snappay.Client
     logger *log.Logger
     wg     sync.WaitGroup
 }
 
 func NewPaymentProcessor() (*PaymentProcessor, error) {
-    client, err := plugnpay.NewClient(nil)
+    client, err := snappay.NewClient(nil)
     if err != nil {
         return nil, err
     }
@@ -485,7 +485,7 @@ func (p *PaymentProcessor) Start(ctx context.Context) error {
         case event := <-eventCh:
             // Process events concurrently
             p.wg.Add(1)
-            go func(e plugnpay.Event) {
+            go func(e snappay.Event) {
                 defer p.wg.Done()
                 p.processEvent(e)
             }(event)
@@ -493,7 +493,7 @@ func (p *PaymentProcessor) Start(ctx context.Context) error {
     }
 }
 
-func (p *PaymentProcessor) processEvent(event plugnpay.Event) {
+func (p *PaymentProcessor) processEvent(event snappay.Event) {
     p.logger.Printf("Processing event %s: %s", event.EventID, event.EventType)
 
     switch event.EventType {
@@ -512,9 +512,9 @@ func (p *PaymentProcessor) processEvent(event plugnpay.Event) {
     }
 }
 
-func (p *PaymentProcessor) handleSubscriptionCreated(event plugnpay.Event) {
+func (p *PaymentProcessor) handleSubscriptionCreated(event snappay.Event) {
     // New customer subscribed - provision access immediately
-    var payload plugnpay.SubscriptionEventData
+    var payload snappay.SubscriptionEventData
     if err := json.Unmarshal(event.Data, &payload); err != nil {
         p.logger.Printf("❌ Failed to unmarshal subscription event: %v", err)
         return
@@ -542,9 +542,9 @@ func (p *PaymentProcessor) handleSubscriptionCreated(event plugnpay.Event) {
     p.logger.Printf("✅ Provisioned access for %s", customerID)
 }
 
-func (p *PaymentProcessor) handlePaymentSucceeded(event plugnpay.Event) {
+func (p *PaymentProcessor) handlePaymentSucceeded(event snappay.Event) {
     // Payment confirmed - extend service
-    var payload plugnpay.InvoiceEventData
+    var payload snappay.InvoiceEventData
     if err := json.Unmarshal(event.Data, &payload); err != nil {
         p.logger.Printf("❌ Failed to unmarshal invoice event: %v", err)
         return
@@ -569,9 +569,9 @@ func (p *PaymentProcessor) handlePaymentSucceeded(event plugnpay.Event) {
     }
 }
 
-func (p *PaymentProcessor) handleSubscriptionCancelled(event plugnpay.Event) {
+func (p *PaymentProcessor) handleSubscriptionCancelled(event snappay.Event) {
     // Subscription cancelled - manage gracefully
-    var payload plugnpay.SubscriptionEventData
+    var payload snappay.SubscriptionEventData
     if err := json.Unmarshal(event.Data, &payload); err != nil {
         p.logger.Printf("❌ Failed to unmarshal subscription event: %v", err)
         return
@@ -594,8 +594,8 @@ func (p *PaymentProcessor) handleSubscriptionCancelled(event plugnpay.Event) {
     }
 }
 
-func (p *PaymentProcessor) handlePaymentFailed(event plugnpay.Event) {
-    var payload plugnpay.InvoiceEventData
+func (p *PaymentProcessor) handlePaymentFailed(event snappay.Event) {
+    var payload snappay.InvoiceEventData
     if err := json.Unmarshal(event.Data, &payload); err != nil {
         p.logger.Printf("❌ Failed to unmarshal invoice event: %v", err)
         return
@@ -717,27 +717,27 @@ import (
     "context"
     "errors"
     "log"
-    "github.com/plugnpay/plugnpay-go"
+    "github.com/snappay/snappay-go"
 )
 
 func comprehensiveErrorHandling() {
     ctx := context.Background()
-    client, err := plugnpay.NewClient(nil)
+    client, err := snappay.NewClient(nil)
     if err != nil {
         log.Fatalf("Failed to create client: %v", err)
     }
 
-    customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+    customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
         CusID: "cus_123",
         Email: "test@example.com",
     })
     if err != nil {
         // Check for specific error types
-        var authErr *plugnpay.AuthenticationError
-        var validationErr *plugnpay.ValidationError
-        var rateLimitErr *plugnpay.RateLimitError
-        var notFoundErr *plugnpay.NotFoundError
-        var serverErr *plugnpay.ServerError
+        var authErr *snappay.AuthenticationError
+        var validationErr *snappay.ValidationError
+        var rateLimitErr *snappay.RateLimitError
+        var notFoundErr *snappay.NotFoundError
+        var serverErr *snappay.ServerError
 
         switch {
         case errors.As(err, &authErr):
@@ -817,7 +817,7 @@ func withTimeout() error {
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer cancel()
 
-    customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+    customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
         Email: "test@example.com",
     })
     if err != nil {
@@ -841,7 +841,7 @@ func withCancellation() error {
         cancel() // Cancel the operation
     }()
 
-    customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+    customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
         Email: "test@example.com",
     })
     if err != nil {
@@ -870,16 +870,16 @@ import (
     "log"
     "sync"
     "time"
-    "github.com/plugnpay/plugnpay-go"
+    "github.com/snappay/snappay-go"
 )
 
 type PlugnPayService struct {
-    client *plugnpay.Client
+    client *snappay.Client
     mu     sync.RWMutex
 }
 
 func NewPlugnPayService() (*PlugnPayService, error) {
-    client, err := plugnpay.NewClient(nil)
+    client, err := snappay.NewClient(nil)
     if err != nil {
         return nil, err
     }
@@ -895,7 +895,7 @@ type CheckoutResult struct {
 
 func (s *PlugnPayService) CreateCustomerAndCheckout(ctx context.Context, email, productID string) CheckoutResult {
     // 1. Customer Management
-    customer, err := s.client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+    customer, err := s.client.GetCustomer(ctx, snappay.GetCustomerArgs{
         CusID: "customer_123",
         Email: email,
         Name:  stringPtr("John Doe"),
@@ -906,12 +906,12 @@ func (s *PlugnPayService) CreateCustomerAndCheckout(ctx context.Context, email, 
     log.Printf("Customer ID: %s", customer.CustomerID)
 
     // 2. Create Checkout Session
-    checkout, err := s.client.CreateCheckoutSession(ctx, plugnpay.CreateCheckoutSessionArgs{
+    checkout, err := s.client.CreateCheckoutSession(ctx, snappay.CreateCheckoutSessionArgs{
         CustomerID: customer.CustomerID,
         ProductID:  productID,
         SuccessURL: "https://yourapp.com/success",
         CancelURL:  stringPtr("https://yourapp.com/cancel"),
-        Provider:   plugnpay.ProviderStripe,
+        Provider:   snappay.ProviderStripe,
     })
     if err != nil {
         return CheckoutResult{Error: fmt.Errorf("failed to create checkout: %w", err)}
@@ -932,7 +932,7 @@ type AccessResult struct {
 
 func (s *PlugnPayService) CheckUserAccess(ctx context.Context, customerID, featureID string) AccessResult {
     // 3. Check Access
-    access, err := s.client.CheckAccess(ctx, plugnpay.CheckAccessArgs{
+    access, err := s.client.CheckAccess(ctx, snappay.CheckAccessArgs{
         CustomerID: customerID,
         FeatureID:  featureID,
     })
@@ -945,7 +945,7 @@ func (s *PlugnPayService) CheckUserAccess(ctx context.Context, customerID, featu
     }
 
     // 4. Track Feature Usage
-    _, err = s.client.TrackUsage(ctx, plugnpay.TrackUsageArgs{
+    _, err = s.client.TrackUsage(ctx, snappay.TrackUsageArgs{
         CustomerID:     customerID,
         FeatureID:      "api-calls",
         Usage:          1,
@@ -956,7 +956,7 @@ func (s *PlugnPayService) CheckUserAccess(ctx context.Context, customerID, featu
     }
 
     // 5. Get Usage Statistics
-    usage, err := s.client.GetUsage(ctx, plugnpay.GetUsageArgs{
+    usage, err := s.client.GetUsage(ctx, snappay.GetUsageArgs{
         CustomerID: customerID,
         FeatureID:  "api-calls",
     })
@@ -994,10 +994,10 @@ func (s *PlugnPayService) StartEventProcessing(ctx context.Context) error {
     }
 }
 
-func (s *PlugnPayService) handleEvent(event plugnpay.Event) {
+func (s *PlugnPayService) handleEvent(event snappay.Event) {
     switch event.EventType {
     case "subscription.created":
-        var payload plugnpay.SubscriptionEventData
+        var payload snappay.SubscriptionEventData
         if err := json.Unmarshal(event.Data, &payload); err != nil {
             log.Printf("Error unmarshaling subscription event: %v", err)
             return
@@ -1005,7 +1005,7 @@ func (s *PlugnPayService) handleEvent(event plugnpay.Event) {
         log.Printf("New subscription for %s", payload.Customer.Email)
 
     case "payment_intent.succeeded":
-        var payload plugnpay.InvoiceEventData
+        var payload snappay.InvoiceEventData
         if err := json.Unmarshal(event.Data, &payload); err != nil {
             log.Printf("Error unmarshaling invoice event: %v", err)
             return
@@ -1067,12 +1067,12 @@ import (
     "context"
     "net/http"
     "github.com/gin-gonic/gin"
-    "github.com/plugnpay/plugnpay-go"
+    "github.com/snappay/snappay-go"
 )
 
 func main() {
-    // Initialize PlugnPay client
-    client, err := plugnpay.NewClient(nil)
+    // Initialize snappay client
+    client, err := snappay.NewClient(nil)
     if err != nil {
         panic(err)
     }
@@ -1092,7 +1092,7 @@ func main() {
         }
 
         // Get or create customer
-        customer, err := client.GetCustomer(c.Request.Context(), plugnpay.GetCustomerArgs{
+        customer, err := client.GetCustomer(c.Request.Context(), snappay.GetCustomerArgs{
             Email: req.Email,
         })
         if err != nil {
@@ -1101,7 +1101,7 @@ func main() {
         }
 
         // Create checkout session
-        session, err := client.CreateCheckoutSession(c.Request.Context(), plugnpay.CreateCheckoutSessionArgs{
+        session, err := client.CreateCheckoutSession(c.Request.Context(), snappay.CreateCheckoutSessionArgs{
             CustomerID: customer.CustomerID,
             ProductID:  req.ProductID,
             SuccessURL: "https://yourapp.com/success",
@@ -1123,7 +1123,7 @@ func main() {
         customerID := c.Param("customer_id")
         featureID := c.Param("feature_id")
 
-        access, err := client.CheckAccess(c.Request.Context(), plugnpay.CheckAccessArgs{
+        access, err := client.CheckAccess(c.Request.Context(), snappay.CheckAccessArgs{
             CustomerID: customerID,
             FeatureID:  featureID,
         })
@@ -1150,11 +1150,11 @@ package main
 import (
     "net/http"
     "github.com/labstack/echo/v4"
-    "github.com/plugnpay/plugnpay-go"
+    "github.com/snappay/snappay-go"
 )
 
 func main() {
-    client, err := plugnpay.NewClient(nil)
+    client, err := snappay.NewClient(nil)
     if err != nil {
         panic(err)
     }
@@ -1171,14 +1171,14 @@ func main() {
             return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
         }
 
-        customer, err := client.GetCustomer(c.Request().Context(), plugnpay.GetCustomerArgs{
+        customer, err := client.GetCustomer(c.Request().Context(), snappay.GetCustomerArgs{
             Email: req.Email,
         })
         if err != nil {
             return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get customer"})
         }
 
-        session, err := client.CreateCheckoutSession(c.Request().Context(), plugnpay.CreateCheckoutSessionArgs{
+        session, err := client.CreateCheckoutSession(c.Request().Context(), snappay.CreateCheckoutSessionArgs{
             CustomerID: customer.CustomerID,
             ProductID:  req.ProductID,
             SuccessURL: "https://yourapp.com/success",
@@ -1204,11 +1204,11 @@ package main
 
 import (
     "github.com/gofiber/fiber/v2"
-    "github.com/plugnpay/plugnpay-go"
+    "github.com/snappay/snappay-go"
 )
 
 func main() {
-    client, err := plugnpay.NewClient(nil)
+    client, err := snappay.NewClient(nil)
     if err != nil {
         panic(err)
     }
@@ -1225,14 +1225,14 @@ func main() {
             return c.Status(400).JSON(fiber.Map{"error": err.Error()})
         }
 
-        customer, err := client.GetCustomer(c.Context(), plugnpay.GetCustomerArgs{
+        customer, err := client.GetCustomer(c.Context(), snappay.GetCustomerArgs{
             Email: req.Email,
         })
         if err != nil {
             return c.Status(500).JSON(fiber.Map{"error": "Failed to get customer"})
         }
 
-        session, err := client.CreateCheckoutSession(c.Context(), plugnpay.CreateCheckoutSessionArgs{
+        session, err := client.CreateCheckoutSession(c.Context(), snappay.CreateCheckoutSessionArgs{
             CustomerID: customer.CustomerID,
             ProductID:  req.ProductID,
             SuccessURL: "https://yourapp.com/success",
@@ -1263,11 +1263,11 @@ import (
     "fmt"
     "log"
     "sync"
-    "github.com/plugnpay/plugnpay-go"
+    "github.com/snappay/snappay-go"
 )
 
 func main() {
-    client, err := plugnpay.NewClient(nil)
+    client, err := snappay.NewClient(nil)
     if err != nil {
         log.Fatalf("Failed to create client: %v", err)
     }
@@ -1281,7 +1281,7 @@ func main() {
         go func(id int) {
             defer wg.Done()
 
-            customer, err := client.GetCustomer(ctx, plugnpay.GetCustomerArgs{
+            customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
                 Email: fmt.Sprintf("user%d@example.com", id),
             })
             if err != nil {
@@ -1305,7 +1305,7 @@ The Go SDK provides comprehensive type definitions for all API responses and con
 ```go
 // Core configuration
 type Config struct {
-    APIKey     string        // Required: PlugnPay API key
+    APIKey     string        // Required: snappay API key
     BaseURL    string        // Optional: Custom API base URL
     HTTPClient *http.Client  // Optional: Custom HTTP client
     UserAgent  string        // Optional: Custom User-Agent header
@@ -1321,4 +1321,4 @@ const (
 // Complete type definitions for all API operations...
 ```
 
-This completes the comprehensive PlugnPay Go SDK documentation. The SDK provides idiomatic Go patterns with channels, context support, and explicit error handling for all your payment and subscription management needs.
+This completes the comprehensive snappay Go SDK documentation. The SDK provides idiomatic Go patterns with channels, context support, and explicit error handling for all your payment and subscription management needs.
