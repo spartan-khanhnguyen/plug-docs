@@ -768,7 +768,7 @@ func comprehensiveErrorHandling() {
 
 ```go
 // Error hierarchy
-type PlugnPayError interface {
+type SnapPayError interface {
     error
     StatusCode() int
     RequestID() string
@@ -873,18 +873,18 @@ import (
     "github.com/snappay/snappay-go"
 )
 
-type PlugnPayService struct {
+type SnapPayService struct {
     client *snappay.Client
     mu     sync.RWMutex
 }
 
-func NewPlugnPayService() (*PlugnPayService, error) {
+func NewSnapPayService() (*SnapPayService, error) {
     client, err := snappay.NewClient(nil)
     if err != nil {
         return nil, err
     }
 
-    return &PlugnPayService{client: client}, nil
+    return &SnapPayService{client: client}, nil
 }
 
 type CheckoutResult struct {
@@ -893,7 +893,7 @@ type CheckoutResult struct {
     Error       error
 }
 
-func (s *PlugnPayService) CreateCustomerAndCheckout(ctx context.Context, email, productID string) CheckoutResult {
+func (s *SnapPayService) CreateCustomerAndCheckout(ctx context.Context, email, productID string) CheckoutResult {
     // 1. Customer Management
     customer, err := s.client.GetCustomer(ctx, snappay.GetCustomerArgs{
         CusID: "customer_123",
@@ -930,7 +930,7 @@ type AccessResult struct {
     Error     error
 }
 
-func (s *PlugnPayService) CheckUserAccess(ctx context.Context, customerID, featureID string) AccessResult {
+func (s *SnapPayService) CheckUserAccess(ctx context.Context, customerID, featureID string) AccessResult {
     // 3. Check Access
     access, err := s.client.CheckAccess(ctx, snappay.CheckAccessArgs{
         CustomerID: customerID,
@@ -971,7 +971,7 @@ func (s *PlugnPayService) CheckUserAccess(ctx context.Context, customerID, featu
     }
 }
 
-func (s *PlugnPayService) StartEventProcessing(ctx context.Context) error {
+func (s *SnapPayService) StartEventProcessing(ctx context.Context) error {
     eventCh, errCh, err := s.client.ListenForEvents(ctx)
     if err != nil {
         return err
@@ -994,7 +994,7 @@ func (s *PlugnPayService) StartEventProcessing(ctx context.Context) error {
     }
 }
 
-func (s *PlugnPayService) handleEvent(event snappay.Event) {
+func (s *SnapPayService) handleEvent(event snappay.Event) {
     switch event.EventType {
     case "subscription.created":
         var payload snappay.SubscriptionEventData
@@ -1018,7 +1018,7 @@ func main() {
     ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
     defer cancel()
 
-    service, err := NewPlugnPayService()
+    service, err := NewSnapPayService()
     if err != nil {
         log.Fatalf("Failed to create service: %v", err)
     }
