@@ -5,7 +5,7 @@ description: Complete guide for integrating SnapPay with Go applications using i
 
 ## Overview
 
-The SnapPay Go SDK provides a comprehensive, idiomatic interface for integrating payment processing, subscription management, and real-time event streaming into your Go applications. Built with modern Go patterns including context support, channel-based concurrency, and explicit error handling, it offers seamless integration with snappay's complete platform.
+The SnapPay Go SDK provides a comprehensive, idiomatic interface for integrating payment processing, subscription management, and real-time event streaming into your Go applications. Built with modern Go patterns including context support, channel-based concurrency, and explicit error handling, it offers seamless integration with SnapPay's platform.
 
 **Requirements:** Go 1.21+
 
@@ -27,6 +27,7 @@ go get github.com/snappay/snappay-go
 ```
 
 Add to your `go.mod`:
+
 ```go
 module your-app
 
@@ -46,11 +47,13 @@ The SDK client is configured via a constructor function that accepts an optional
 Authentication is handled via an API key that must start with `pk_test_` (for testing) or `pk_live_` (for production). Configure your API key in one of these ways:
 
 **Environment Variable (Recommended):**
+
 ```bash
 export SNAPPAY_API_KEY="pk_test_xxxxxxxxxx"
 ```
 
 **Direct Configuration:**
+
 ```go
 package main
 
@@ -58,6 +61,7 @@ import (
     "context"
     "log"
     "github.com/snappay/snappay-go"
+    "github.com/snappay/snappay-go/services"
 )
 
 func main() {
@@ -68,7 +72,7 @@ func main() {
     }
 
     // Using direct API key
-    client, err := snappay.NewClient(&snappay.Config{
+    client, err = snappay.NewClient(&services.Config{
         APIKey: "pk_test_xxxxxxxxxx",
     })
     if err != nil {
@@ -80,9 +84,13 @@ func main() {
 ### Advanced Configuration
 
 ```go
-import "time"
+import (
+    "net/http"
+    "time"
+    "github.com/snappay/snappay-go/services"
+)
 
-config := &snappay.Config{
+config := &services.Config{
     APIKey:     "pk_test_xxxxxxxxxx",
     BaseURL:    "https://api.snappay.dev",  // Custom base URL
     HTTPClient: &http.Client{                // Custom HTTP client
@@ -108,11 +116,13 @@ All methods accept a `context.Context` as the first parameter and return a resul
 Retrieves or creates a customer record (upsert logic).
 
 ```go
+import "github.com/snappay/snappay-go/services/customer"
+
 ctx := context.Background()
-customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
+customer, err := customer.Get(client, ctx, customer.GetCustomerArgs{
     CusID: "cus_123",
-    Email: "user@example.com",
-    Name:  "John Doe", // Optional
+    Email: stringPtr("user@example.com"),
+    Name:  stringPtr("John Doe"), // Optional
 })
 if err != nil {
     log.Fatalf("Failed to get customer: %v", err)
@@ -121,11 +131,13 @@ fmt.Printf("Customer ID: %s\n", customer.CustomerID)
 ```
 
 **Parameters:**
+
 - `CusID` (string): Customer identifier
-- `Email` (*string): Customer email address (optional)
-- `Name` (*string): Customer full name (optional)
+- `Email` (\*string): Customer email address (optional)
+- `Name` (\*string): Customer full name (optional)
 
 **Returns:** `(*Customer, error)`
+
 ```go
 type Customer struct {
     CustomerID string  `json:"customer_id"` // SnapPay customer ID
@@ -145,16 +157,16 @@ type Customer struct {
 Creates a payment checkout session URL for customer purchases.
 
 ```go
-import "github.com/snappay/snappay-go"
+import "github.com/snappay/snappay-go/services/checkout"
 
 ctx := context.Background()
-session, err := client.CreateCheckoutSession(ctx, snappay.CreateCheckoutSessionArgs{
+session, err := checkout.CreateSession(client, ctx, checkout.CreateCheckoutSessionArgs{
     CustomerID: "cus_123",
     ProductID:  "premium-plan",
     SuccessURL: "https://yourapp.com/success",
     CancelURL:  stringPtr("https://yourapp.com/cancel"), // Optional
-    Provider:   snappay.ProviderStripe,                 // Default: ProviderStripe
-    Metadata: map[string]string{                         // Optional
+    Provider:   checkout.ProviderStripe,                  // Default: stripe
+    Metadata: map[string]string{                          // Optional
         "order_id": "ord_456",
     },
 })
@@ -165,14 +177,16 @@ fmt.Printf("Checkout URL: %s\n", session.URL)
 ```
 
 **Parameters:**
+
 - `CustomerID` (string): SnapPay customer ID
 - `ProductID` (string): Product ID from your snappay dashboard
 - `SuccessURL` (string): URL to redirect after successful payment
-- `CancelURL` (*string): URL to redirect on cancellation (optional)
+- `CancelURL` (\*string): URL to redirect on cancellation (optional)
 - `Provider` (Provider): Payment provider (defaults to ProviderStripe)
 - `Metadata` (map[string]string): Additional checkout parameters (optional)
 
 **Returns:** `(*CheckoutSession, error)`
+
 ```go
 type CheckoutSession struct {
     SessionID string  `json:"session_id"` // Unique session identifier
@@ -188,8 +202,10 @@ type CheckoutSession struct {
 Checks if a customer has access to a specific feature based on their subscription and usage limits.
 
 ```go
+import "github.com/snappay/snappay-go/services/access"
+
 ctx := context.Background()
-access, err := client.CheckAccess(ctx, snappay.CheckAccessArgs{
+access, err := access.Check(client, ctx, access.CheckAccessArgs{
     CustomerID: "cus_123",
     FeatureID:  "premium-features",
 })
@@ -198,10 +214,12 @@ if err != nil {
 }
 
 if access.HasAccess {
-    if access.UsageRemaining != nil {
-        fmt.Printf("Access granted! Remaining usage: %d\n", *access.UsageRemaining)
+    if access.Usage != nil && access.Allowance != nil {
+        remaining := *access.Allowance - *access.Usage
+        fmt.Printf("Access granted. %d/%d used\n", *access.Usage, *access.Allowance)
+        fmt.Printf("Remaining: %d\n", remaining)
     } else {
-        fmt.Println("Access granted with unlimited usage!")
+        fmt.Println("Access granted (unlimited feature)")
     }
 } else {
     fmt.Println("Access denied. Upgrade required.")
@@ -209,21 +227,19 @@ if access.HasAccess {
 ```
 
 **Parameters:**
+
 - `CustomerID` (string): SnapPay customer ID
 - `FeatureID` (string): Feature identifier
 
 **Returns:** `(*AccessCheck, error)`
+
 ```go
 type AccessCheck struct {
-    HasAccess          bool    `json:"has_access"`            // Whether customer has access
-    FeatureID          string  `json:"feature_id"`            // Feature being checked
-    CustomerID         string  `json:"customer_id"`           // Customer being checked
-    UsageRemaining     *int64  `json:"usage_remaining"`       // Remaining usage units
-    UsageTotal         *int64  `json:"usage_total"`           // Total usage so far
-    UsageLimit         *int64  `json:"usage_limit"`           // Maximum usage allowed
-    ResetDate          *string `json:"reset_date"`            // When usage resets
-    SubscriptionStatus *string `json:"subscription_status"`   // Current subscription status
-    ExpiresAt          *string `json:"expires_at"`            // Access expiration timestamp
+    HasAccess   bool   `json:"has_access"`
+    FeatureID   string `json:"feature_id"`
+    Usage       *int64 `json:"usage"`
+    Allowance   *int64 `json:"allowance"`
+    NextResetAt *int64 `json:"next_reset_at"`
 }
 ```
 
@@ -234,26 +250,30 @@ type AccessCheck struct {
 Reports usage for a metered feature. This action is idempotent to prevent duplicate tracking.
 
 ```go
+import "github.com/snappay/snappay-go/services/usage"
+
 ctx := context.Background()
-result, err := client.TrackUsage(ctx, snappay.TrackUsageArgs{
+result, err := usage.Track(client, ctx, usage.TrackUsageArgs{
     CustomerID:     "cus_123",
     FeatureID:      "ai-messages",
-    Usage:          1,   // or 1.5 for fractional usage
+    Usage:          1,   // integer usage units
     IdempotencyKey: stringPtr("unique-operation-123"), // Optional
 })
 if err != nil {
     log.Fatalf("Failed to track usage: %v", err)
 }
-fmt.Printf("Usage tracked successfully: %t\n", result.Success)
+fmt.Printf("Tracked %d units. Total: %d (idempotency: %v)\n", result.Added, result.Used, result.IdempotencyKey)
 ```
 
 **Parameters:**
+
 - `CustomerID` (string): SnapPay customer ID
 - `FeatureID` (string): Feature identifier for usage tracking
 - `Usage` (float64): Usage amount to track
-- `IdempotencyKey` (*string): Prevents duplicate tracking (optional)
+- `IdempotencyKey` (\*string): Prevents duplicate tracking (optional)
 
 **Returns:** `(*TrackUsageResponse, error)`
+
 ```go
 type TrackUsageResponse struct {
     Success bool `json:"success"` // Tracking confirmation
@@ -266,24 +286,27 @@ Retrieves current usage details for a customer's feature.
 
 ```go
 ctx := context.Background()
-usage, err := client.GetUsage(ctx, snappay.GetUsageArgs{
+items, err := usage.Get(client, ctx, usage.GetUsageArgs{
     CustomerID: "cus_123",
     FeatureID:  "ai-messages",
 })
 if err != nil {
     log.Fatalf("Failed to get usage: %v", err)
 }
-
-fmt.Printf("Total usage: %d\n", usage.TotalUsage)
-fmt.Printf("Remaining: %s\n", formatUsage(usage.Remaining))
-fmt.Printf("Limit: %s\n", formatUsage(usage.Limit))
+for _, u := range *items {
+    fmt.Printf("Total usage: %d\n", u.TotalUsage)
+    if u.Remaining != nil { fmt.Printf("Remaining: %d\n", *u.Remaining) }
+    if u.Limit != nil { fmt.Printf("Limit: %d\n", *u.Limit) }
+}
 ```
 
 **Parameters:**
+
 - `CustomerID` (string): SnapPay customer ID
 - `FeatureID` (string): Feature identifier
 
 **Returns:** `(*GetUsageResponse, error)`
+
 ```go
 type GetUsageResponse struct {
     Limit      *int64 `json:"limit"`       // Total limit for period (nil for unlimited)
@@ -297,6 +320,7 @@ type GetUsageResponse struct {
 **Say goodbye to webhook hell!** snappay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE) using Go channels.
 
 ### 🚫 What You DON'T Need:
+
 - **No webhook endpoints** to create and maintain
 - **No webhook signature verification**
 - **No webhook retry logic** or failure handling
@@ -304,6 +328,7 @@ type GetUsageResponse struct {
 - **No debugging webhook delivery issues**
 
 ### ✅ What You GET:
+
 - **Real-time events** delivered instantly via Go channels
 - **Guaranteed delivery** with automatic reconnection
 - **Clean, structured data** - no raw webhook payloads
@@ -312,7 +337,7 @@ type GetUsageResponse struct {
 
 ### Channel-Based Event Streaming
 
-Simply receive events from channels as they arrive - snappay handles all the webhook complexity behind the scenes:
+Receive events via channels and handle them with context-aware loops:
 
 ```go
 package main
@@ -324,54 +349,40 @@ import (
     "os/signal"
     "syscall"
     "github.com/snappay/snappay-go"
+    "github.com/snappay/snappay-go/services/sse"
 )
 
 func main() {
-    // Graceful shutdown context
     ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
     defer stop()
 
     client, err := snappay.NewClient(nil)
-    if err != nil {
-        log.Fatalf("Failed to create client: %v", err)
-    }
+    if err != nil { log.Fatalf("Failed to create client: %v", err) }
 
-    log.Println("Listening for payment events (no webhooks needed!)...")
+    // Register handlers (optional)
+    client.OnEvent(sse.EventTypeSubscriptionUpdated, func(ev *sse.SSEEvent) error {
+        data, err := ev.GetSubscriptionData()
+        if err == nil {
+            log.Printf("Subscription updated for %s: %s", data.CustomerID, data.PaymentStatus)
+        }
+        return nil
+    })
 
-    // snappay processes Stripe/PayPal webhooks and sends you clean events
-    eventCh, errCh, err := client.ListenForEvents(ctx)
-    if err != nil {
-        log.Fatalf("Failed to start event listener: %v", err)
-    }
-
+    // Stream events
+    evCh, errCh := client.StreamEvents(ctx)
     for {
         select {
         case <-ctx.Done():
-            log.Println("Shutting down...")
             return
-
         case err := <-errCh:
-            log.Printf("Event stream error: %v", err)
-            // Handle reconnection logic
+            log.Printf("stream error: %v", err)
             return
-
-        case event := <-eventCh:
-            log.Printf("Event: %s", event.EventType)
-            log.Printf("Customer: %s", event.CustomerID)
-
-            // Handle purchase completion instantly
-            if event.EventType == "subscription.created" {
-                var payload snappay.SubscriptionEventData
-                if err := json.Unmarshal(event.Data, &payload); err != nil {
-                    log.Printf("Error unmarshaling: %v", err)
-                    continue
+        case ev := <-evCh:
+            if ev.Type == sse.EventTypeSubscriptionUpdated {
+                var payload sse.SubscriptionUpdatedData
+                if err := json.Unmarshal(ev.Data, &payload); err == nil {
+                    log.Printf("Updated: %+v", payload)
                 }
-                log.Printf("🎉 New subscriber: %s", payload.Customer.CustomerID)
-                // Provision access immediately - no webhook delays!
-
-            } else if event.EventType == "payment_intent.succeeded" {
-                log.Printf("💰 Payment received for %s", event.CustomerID)
-                // Update user account, send receipt, etc.
             }
         }
     }
@@ -701,6 +712,7 @@ func main() {
 ```
 
 **Key Benefits Demonstrated:**
+
 - ✅ **Zero webhook infrastructure** - no endpoints, no servers, no security concerns
 - ✅ **Instant event processing** - no webhook delivery delays or failures
 - ✅ **Channel-based concurrency** - perfect for Go's goroutine model

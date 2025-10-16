@@ -34,33 +34,30 @@ The SDK is configured through environment variables and the client's constructor
 Authentication is handled via an API key that must start with `pk_test_` (for testing) or `pk_live_` (for production). Configure your API key in one of these ways:
 
 **Environment Variable (Recommended):**
+
 ```bash
 export SNAPPAY_API_KEY="pk_test_xxxxxxxxxx"
 ```
 
 **Direct Configuration:**
+
 ```javascript
-import { SnapPay } from '@snappay/sdk';
+import { SnapPay } from "@snappay/sdk";
 
 // Using environment variable (recommended)
 const client = new SnapPay();
 
 // Using direct API key
-const clientWithKey = new SnapPay({
-  apiKey: "pk_test_xxxxxxxxxx"
-});
+const clientWithKey = new SnapPay("pk_test_xxxxxxxxxx");
 ```
 
 ### Advanced Configuration
 
 ```javascript
-import { SnapPay } from '@snappay/sdk';
+import { SnapPay } from "@snappay/sdk";
 
-const client = new SnapPay({
-  apiKey: "pk_test_xxxxxxxxxx",
-  baseUrl: "https://api.snappay.dev",  // Custom base URL
-  timeout: 30000,  // Request timeout in milliseconds
-});
+// Constructor: new SnapPay(apiKey?: string, baseUrl?: string)
+const client = new SnapPay("pk_test_xxxxxxxxxx", "https://api.snappay.dev");
 ```
 
 ## Core Methods
@@ -69,153 +66,185 @@ All methods are async functions that return promises and must be called with `aw
 
 ### Customer Management
 
-#### getCustomer
+#### customers.get
 
 Retrieves or creates a customer record (upsert logic).
 
 ```javascript
-const customer = await client.getCustomer({
-  cusId: "cus_123",
-  email: "user@example.com",
-  name: "John Doe"  // Optional
-});
-console.log(`Customer ID: ${customer.customer_id}`);
-```
-
-**Parameters:**
-- `cusId` (string): Customer identifier
-- `email` (string, optional): Customer email address
-- `name` (string, optional): Customer full name
-
-**Returns:** `Customer` object with:
-- `customer_id` (string): SnapPay customer ID
-- `email` (string): Customer email
-- `name` (string): Customer name
-- `status` (string): Customer account status
-- `env` (string): Environment (test/live)
-
-### Checkout Sessions
-
-#### createCheckoutSession
-
-Creates a payment checkout session URL for customer purchases.
-
-```javascript
-import { Provider } from '@snappay/sdk';
-
-const session = await client.createCheckoutSession({
-  customer_id: "cus_123",
-  product_id: "premium-plan",
-  success_url: "https://yourapp.com/success",
-  cancel_url: "https://yourapp.com/cancel",  // Optional
-  provider: Provider.STRIPE,  // Default: STRIPE
-  // Additional checkout parameters
-  metadata: { order_id: "ord_456" }
-});
-console.log(`Checkout URL: ${session.url}`);
-```
-
-**Parameters:**
-- `customer_id` (string): SnapPay customer ID
-- `product_id` (string): Product ID from your SnapPay dashboard
-- `success_url` (string): URL to redirect after successful payment
-- `cancel_url` (string, optional): URL to redirect on cancellation
-- `provider` (Provider): Payment provider (defaults to STRIPE)
-- Additional checkout session parameters
-
-**Returns:** `CheckoutSession` object with:
-- `session_id` (string): Unique session identifier
-- `url` (string): Checkout URL for customer
-- `expires_at` (string): Session expiration timestamp
-
-### Access Control
-
-#### checkAccess
-
-Checks if a customer has access to a specific feature based on their subscription and usage limits.
-
-```javascript
-const access = await client.checkAccess({
-  customer_id: "cus_123",
-  feature_id: "premium-features"
-});
-
-if (access.has_access) {
-  const remaining = access.usage_remaining;
-  if (remaining !== null) {
-    console.log(`Access granted! Remaining usage: ${remaining}`);
-  } else {
-    console.log("Access granted with unlimited usage!");
-  }
+const result = await client.customers.get(
+  "cus_123",
+  "user@example.com",
+  "John Doe"
+);
+if (!result.ok) {
+  console.error(result.error.message);
 } else {
-  console.log("Access denied. Upgrade required.");
+  const customer = result.data;
+  console.log(`Customer ID: ${customer.cus_id}`);
 }
 ```
 
 **Parameters:**
-- `customer_id` (string): SnapPay customer ID
-- `feature_id` (string): Feature identifier
+
+- `customerId` (string): Customer identifier
+- `email` (string, optional): Customer email address
+- `name` (string, optional): Customer full name
+
+**Returns:** `Customer` object with:
+
+- `customerId` (string): SnapPay customer ID
+- `email` (string): Customer email
+- `name` (string): Customer name
+- `status` (string): Customer account status
+
+### Checkout Sessions
+
+#### checkout.createSession
+
+Creates a payment checkout session URL for customer purchases.
+
+```javascript
+import { Provider } from "@snappay/sdk";
+
+const result = await client.checkout.createSession(
+  "cus_123",
+  "premium-plan",
+  "https://yourapp.com/success",
+  "https://yourapp.com/cancel", // Optional
+  null, // Optional priceId
+  Provider.STRIPE, // Default
+  { metadata: { order_id: "ord_456" } }
+);
+if (!result.ok) {
+  console.error(result.error.message);
+} else {
+  console.log(`Checkout URL: ${result.data.url}`);
+}
+```
+
+**Parameters:**
+
+- `customerId` (string): SnapPay customer ID
+- `productId` (string): Product ID from your SnapPay dashboard
+- `successUrl` (string): URL to redirect after successful payment
+- `cancelUrl` (string, optional): URL to redirect on cancellation
+- `provider` (Provider): Payment provider (defaults to STRIPE)
+- Additional checkout session parameters
+
+**Returns:** `CheckoutSession` object with:
+
+- `sessionId` (string): Unique session identifier
+- `url` (string): Checkout URL for customer
+- `expiresAt` (string): Session expiration timestamp
+
+### Access Control
+
+#### access.check
+
+Checks if a customer has access to a specific feature based on their subscription and usage limits.
+
+```javascript
+const result = await client.access.check("cus_123", "premium-features");
+if (!result.ok) {
+  console.error(result.error.message);
+} else {
+  const access = result.data;
+  if (access.hasAccess) {
+    const { usage, allowance } = access;
+    if (usage != null && allowance != null) {
+      console.log(`Access granted. ${usage}/${allowance} used`);
+    } else {
+      console.log("Access granted (unlimited feature)");
+    }
+  } else {
+    console.log("Access denied. Upgrade required.");
+  }
+}
+```
+
+**Parameters:**
+
+- `customerId` (string): SnapPay customer ID
+- `featureId` (string): Feature identifier
 
 **Returns:** `AccessCheck` object with:
-- `has_access` (boolean): Whether customer has access
-- `feature_id` (string): Feature being checked
-- `customer_id` (string): Customer being checked
-- `usage_remaining` (number | null): Remaining usage units
-- `usage_total` (number | null): Total usage so far
-- `usage_limit` (number | null): Maximum usage allowed
-- `reset_date` (string | null): When usage resets
-- `subscription_status` (string | null): Current subscription status
-- `expires_at` (string | null): Access expiration timestamp
+
+- `hasAccess` (boolean): Whether customer has access
+- `featureId` (string): Feature being checked
+- `usage` (number | null): Current usage (null if unlimited/no access)
+- `allowance` (number | null): Usage limit (null if unlimited/no access)
+- `nextResetAt` (number | null): Next reset timestamp (epoch seconds)
 
 ### Usage Tracking
 
-#### trackUsage
+#### usage.track
 
 Reports usage for a metered feature. This action is idempotent to prevent duplicate tracking.
 
 ```javascript
-const result = await client.trackUsage({
-  customer_id: "cus_123",
-  feature_id: "ai-messages",
-  usage: 1,  // or 1.5 for fractional usage
-  idempotency_key: "unique-operation-123"  // Optional
+const result = await client.usage.track({
+  customerId: "cus_123",
+  featureId: "ai-messages",
+  usage: 1, // or 1.5 for fractional usage
+  idempotencyKey: "unique-operation-123", // Optional
 });
-console.log(`Usage tracked successfully: ${result.success}`);
+if (!result.ok) {
+  console.error(result.error.message);
+} else {
+  console.log(`Usage tracked successfully: ${result.data.success}`);
+}
 ```
 
 **Parameters:**
-- `customer_id` (string): SnapPay customer ID
-- `feature_id` (string): Feature identifier for usage tracking
+
+- `customerId` (string): SnapPay customer ID
+- `featureId` (string): Feature identifier for usage tracking
 - `usage` (number): Usage amount to track
-- `idempotency_key` (string, optional): Prevents duplicate tracking
+- `idempotencyKey` (string, optional): Prevents duplicate tracking
 
 **Returns:** `TrackUsageResponse` object with tracking confirmation details.
 
-#### getUsage
+#### usage.get
 
 Retrieves current usage details for a customer's feature.
 
 ```javascript
-const usage = await client.getUsage({
-  customer_id: "cus_123",
-  feature_id: "ai-messages"
+const result = await client.usage.get({
+  customerId: "cus_123",
+  featureId: "ai-messages",
 });
-console.log(`Total usage: ${usage.total_usage}`);
-console.log(`Remaining: ${usage.remaining}`);
-console.log(`Limit: ${usage.limit}`);
+if (!result.ok) {
+  console.error(result.error.message);
+} else {
+  const items = result.data;
+  for (const usage of items) {
+    console.log(`Total usage: ${usage.totalUsage}`);
+    if (usage.remaining != null) console.log(`Remaining: ${usage.remaining}`);
+    if (usage.limit != null) console.log(`Limit: ${usage.limit}`);
+  }
+}
 ```
 
 **Parameters:**
-- `customer_id` (string): SnapPay customer ID
-- `feature_id` (string): Feature identifier
 
-**Returns:** `GetUsageResponse` object with current usage and limits.
+- `customerId` (string): SnapPay customer ID
+- `featureId` (string): Feature identifier
+
+**Returns:** `GetUsageResponse[]` array with items containing:
+
+- `totalUsage` (number)
+- `productId` (string)
+- `featureId` (string)
+- `remaining` (number | null)
+- `limit` (number | null)
+- `nextResetAt` (number | null)
 
 ## Real-time Event Handling
 
 **Say goodbye to webhook hell!** SnapPay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE).
 
 ### 🚫 What You DON'T Need:
+
 - **No webhook endpoints** to create and maintain
 - **No webhook signature verification**
 - **No webhook retry logic** or failure handling
@@ -223,6 +252,7 @@ console.log(`Limit: ${usage.limit}`);
 - **No debugging webhook delivery issues**
 
 ### ✅ What You GET:
+
 - **Real-time events** delivered instantly to your application
 - **Guaranteed delivery** with automatic reconnection
 - **Clean, structured data** - no raw webhook payloads
@@ -234,26 +264,14 @@ console.log(`Limit: ${usage.limit}`);
 Simply iterate over events as they arrive - SnapPay handles all the webhook complexity behind the scenes:
 
 ```javascript
-import { SnapPay } from '@snappay/sdk';
+import { SnapPay } from "@snappay/sdk";
 
 async function main() {
   const client = new SnapPay();
-  console.log("Listening for payment events (no webhooks needed!)...");
-
-  // SnapPay processes Stripe/PayPal webhooks and sends you clean events
   for await (const event of client.streamEvents()) {
-    console.log(`Event: ${event.webhook_event_type}`);
-    console.log(`Customer: ${event.customer_id}`);
-
-    // Handle purchase completion instantly
-    if (event.webhook_event_type === "subscription.created") {
-      const customer_id = event.customer_id;
-      console.log(`🎉 New subscriber: ${customer_id}`);
-      // Provision access immediately - no webhook delays!
-    } else if (event.webhook_event_type === "payment_intent.succeeded") {
-      console.log(`💰 Payment received for ${event.customer_id}`);
-      // Update user account, send receipt, etc.
-    }
+    console.log(`Event: ${event.type}`);
+    console.log(`ID: ${event.id}`);
+    console.log(`Data:`, event.data);
   }
 }
 
@@ -265,49 +283,22 @@ main().catch(console.error);
 Set up handlers for specific payment events - SnapPay converts complex webhook payloads into simple, actionable events:
 
 ```javascript
-import { SnapPay } from '@snappay/sdk';
+import { SnapPay, SSEEventType } from "@snappay/sdk";
 
-function handleNewSubscription(event) {
-  // Called when customer completes subscription purchase
-  const customer_id = event.customer_id;
-  console.log(`🎉 New subscriber: ${customer_id}`);
-
-  // Immediately provision access - no webhook complexity!
-  // SnapPay already verified the payment and processed the webhook
-  provisionPremiumAccess(customer_id);
-  sendWelcomeEmail(customer_id);
+function handleSubscriptionUpdated(event) {
+  console.log("Subscription updated:", event.data);
 }
 
-function handleSuccessfulPayment(event) {
-  // Called when payment is confirmed by payment provider
-  const customer_id = event.customer_id;
-  const payment_data = event.event_data.payment_intent || {};
-  const amount = payment_data.amount || 0;
-
-  console.log(`💰 Payment confirmed: $${amount/100} from ${customer_id}`);
-  // Update billing, send receipt, extend service, etc.
-}
-
-function handleFailedPayment(event) {
-  // Called when payment fails
-  const customer_id = event.customer_id;
-  console.log(`❌ Payment failed for ${customer_id}`);
-  // Notify customer, pause service, handle dunning, etc.
+function handleAny(event) {
+  console.log("Event:", event.type, event.data);
 }
 
 async function main() {
   const client = new SnapPay();
-
-  // No webhook setup needed - just register your handlers
-  client.on("subscription.created", handleNewSubscription);
-  client.on("payment_intent.succeeded", handleSuccessfulPayment);
-  client.on("payment_intent.payment_failed", handleFailedPayment);
-
-  // Start receiving events (SnapPay handles all webhook processing)
+  client.on(SSEEventType.SUBSCRIPTION_UPDATED, handleSubscriptionUpdated);
+  client.on("*", handleAny);
   await client.startEvents();
-
-  console.log("🚀 Listening for payment events - webhook-free!");
-  await new Promise(resolve => setTimeout(resolve, 3600000)); // Your app runs normally
+  await new Promise((resolve) => setTimeout(resolve, 60000));
 }
 
 main().catch(console.error);
@@ -315,20 +306,37 @@ main().catch(console.error);
 
 ### Event Structure
 
-SnapPay transforms raw webhook payloads from payment providers into clean, structured `SSEEvent` objects:
+SSE events are normalized to a discriminated union with three types:
 
-```javascript
-// What you receive (clean, structured)
-const event = {
-  event_id: "evt_123456",                    // Unique event identifier
-  webhook_event_type: "subscription.created", // Standardized event type
-  customer_id: "cus_123",                    // Your customer ID
-  event_data: {                             // Relevant data only
-    subscription: { id: "sub_456", status: "active" },
-    customer: { email: "user@example.com" }
-  },
-  created_at: "2024-01-01T10:00:00Z"        // Event timestamp
-};
+```ts
+type SSEEvent =
+  | {
+      readonly id: string;
+      readonly type: "CONNECTION_ESTABLISHED";
+      readonly data: Record<string, never>;
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly type: "HEARTBEAT";
+      readonly data: Record<string, never>;
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly type: "SUBSCRIPTION_UPDATED";
+      readonly data: {
+        customerSubscriptionId: string;
+        customerId: string;
+        productId: string;
+        paymentStatus:
+          | "success"
+          | "action_required"
+          | "failed"
+          | "subscription_renewed";
+      };
+      readonly createdAt: string;
+    };
 ```
 
 ### Advanced Event Configuration
@@ -338,136 +346,12 @@ Configure reconnection and filtering behavior:
 ```javascript
 async function main() {
   const client = new SnapPay();
-
-  // Configure SSE client
-  const sseClient = client.events({
-    reconnect_interval: 5,  // Seconds between reconnection attempts
-    max_reconnect_attempts: 10  // Maximum reconnection attempts
-  });
-
-  // Stream with configuration
-  for await (const event of client.streamEvents({
-    reconnect_interval: 5,
-    max_reconnect_attempts: 10,
-    include_system_events: false  // Exclude heartbeat events
-  })) {
-    console.log(`Event: ${event.webhook_event_type}`);
+  client.events({ reconnectInterval: 5, maxReconnectAttempts: 10 });
+  for await (const event of client.streamEvents({}, false)) {
+    console.log(`Event: ${event.type}`);
   }
 }
 ```
-
-### Production-Ready Event Handling
-
-Here's a complete example showing how SnapPay eliminates webhook complexity for a SaaS application:
-
-```javascript
-import { SnapPay } from '@snappay/sdk';
-
-// Configure logging
-const logger = console;
-
-function handleSubscriptionCreated(event) {
-  // New customer subscribed - provision access immediately
-  const customer_id = event.customer_id;
-  const subscription_data = event.event_data.subscription || {};
-  const plan_id = subscription_data.plan_id;
-
-  logger.info(`🎉 New subscriber: ${customer_id} on plan ${plan_id}`);
-
-  // Instant provisioning - no webhook delays or failures
-  try {
-    enablePremiumFeatures(customer_id, plan_id);
-    sendWelcomeEmail(customer_id);
-    updateUserDashboard(customer_id, "premium");
-    logger.info(`✅ Provisioned access for ${customer_id}`);
-  } catch (e) {
-    logger.error(`❌ Failed to provision ${customer_id}: ${e}`);
-  }
-}
-
-function handlePaymentSucceeded(event) {
-  // Payment confirmed - extend service
-  const customer_id = event.customer_id;
-  const invoice_data = event.event_data.invoice || {};
-  const amount = invoice_data.amount_paid || 0;
-
-  logger.info(`💰 Payment received: $${amount/100} from ${customer_id}`);
-
-  // Process payment instantly
-  extendServicePeriod(customer_id);
-  sendReceipt(customer_id, amount);
-  updateBillingHistory(customer_id, amount);
-}
-
-function handleSubscriptionCancelled(event) {
-  // Subscription cancelled - manage gracefully
-  const customer_id = event.customer_id;
-
-  logger.info(`📋 Subscription cancelled for ${customer_id}`);
-
-  // Handle cancellation
-  scheduleAccessRevocation(customer_id);  // Grace period
-  sendCancellationEmail(customer_id);
-  triggerWinBackCampaign(customer_id);
-}
-
-async function runPaymentProcessor() {
-  // Main application with webhook-free payment processing
-  const client = new SnapPay();
-  logger.info("🚀 Starting payment processor (no webhooks needed)");
-
-  // Register all payment event handlers
-  client.on("subscription.created", handleSubscriptionCreated);
-  client.on("subscription.updated", (e) => logger.info(`Plan updated: ${e.customer_id}`));
-  client.on("subscription.deleted", handleSubscriptionCancelled);
-  client.on("invoice.payment.succeeded", handlePaymentSucceeded);
-  client.on("invoice.payment.failed", (e) => handlePaymentFailure(e.customer_id));
-
-  // Start processing events - SnapPay handles all webhook complexity
-  await client.startEvents();
-
-  logger.info("✨ Payment processor running - webhook-free architecture!");
-
-  // Your application continues running normally
-  // Events are processed in real-time as payments happen
-  try {
-    while (true) {
-      await new Promise(resolve => setTimeout(resolve, 60000));  // Keep alive
-      logger.debug("Payment processor healthy");
-    }
-  } catch (error) {
-    logger.info("Shutting down payment processor...");
-  } finally {
-    await client.stopEvents();
-  }
-}
-
-function handlePaymentFailure(customer_id) {
-  // Handle failed payments
-  logger.warn(`❌ Payment failed for ${customer_id}`);
-  // Retry logic, dunning management, etc.
-}
-
-// Helper functions (implement these for your app)
-function enablePremiumFeatures(customer_id, plan_id) {}
-function sendWelcomeEmail(customer_id) {}
-function updateUserDashboard(customer_id, tier) {}
-function extendServicePeriod(customer_id) {}
-function sendReceipt(customer_id, amount) {}
-function updateBillingHistory(customer_id, amount) {}
-function scheduleAccessRevocation(customer_id) {}
-function sendCancellationEmail(customer_id) {}
-function triggerWinBackCampaign(customer_id) {}
-
-// No webhook server needed - just run your payment processor!
-runPaymentProcessor().catch(console.error);
-```
-
-**Key Benefits Demonstrated:**
-- ✅ **Zero webhook infrastructure** - no endpoints, no servers, no security concerns
-- ✅ **Instant event processing** - no webhook delivery delays or failures
-- ✅ **Simplified error handling** - no webhook verification or retry logic needed
-- ✅ **Clean separation of concerns** - focus on business logic, not webhook plumbing
 
 ## Error Handling
 
@@ -475,18 +359,19 @@ The SDK provides comprehensive error handling with typed exceptions:
 
 ```javascript
 import {
-  SnapPay, SnapPayError, AuthenticationError,
-  ValidationError, RateLimitError, NotFoundError
-} from '@snappay/sdk';
+  SnapPay,
+  SnapPayError,
+  AuthenticationError,
+  ValidationError,
+  RateLimitError,
+  NotFoundError,
+} from "@snappay/sdk";
 
 async function comprehensiveErrorHandling() {
   const client = new SnapPay();
 
   try {
-    const customer = await client.getCustomer({
-      cusId: "cus_123",
-      email: "test@example.com"
-    });
+    const customer = await client.customers.get("cus_123", "test@example.com");
   } catch (error) {
     if (error instanceof AuthenticationError) {
       console.log(`Invalid API key: ${error.message}`);
@@ -523,55 +408,59 @@ SnapPayError                    // Base exception
 Here's a comprehensive example showing all major SDK features:
 
 ```javascript
-import { SnapPay, Provider } from '@snappay/sdk';
+import { SnapPay, Provider } from "@snappay/sdk";
 
 async function main() {
   const client = new SnapPay();
 
   try {
     // 1. Customer Management
-    const customer = await client.getCustomer({
-      cusId: "customer_123",
-      email: "customer@example.com",
-      name: "John Doe"
-    });
-    console.log(`Customer ID: ${customer.customer_id}`);
+    const customerRes = await client.customers.get(
+      "customer_123",
+      "customer@example.com",
+      "John Doe"
+    );
+    const customer = customerRes.ok
+      ? customerRes.data
+      : (() => {
+          throw customerRes.error;
+        })();
+    console.log(`Customer ID: ${customer.cus_id}`);
 
     // 2. Create Checkout Session
-    const checkout = await client.createCheckoutSession({
-      customer_id: customer.customer_id,
-      product_id: "premium-plan",
-      success_url: "https://yourapp.com/success",
-      cancel_url: "https://yourapp.com/cancel",
-      provider: Provider.STRIPE
-    });
+    const checkout = await client.checkout.createSession(
+      customer.cus_id,
+      "premium-plan",
+      "https://yourapp.com/success",
+      "https://yourapp.com/cancel",
+      null,
+      Provider.STRIPE
+    );
     console.log(`Checkout URL: ${checkout.url}`);
 
     // 3. Check Access (after customer completes purchase)
-    const access = await client.checkAccess({
-      customer_id: customer.customer_id,
-      feature_id: "premium-features"
-    });
+    const accessResult = await client.access.check(
+      customer.cus_id,
+      "premium-features"
+    );
 
-    if (access.has_access) {
+    if (accessResult.ok && accessResult.data.hasAccess) {
       console.log("Customer has access!");
 
       // 4. Track Feature Usage
-      await client.trackUsage({
-        customer_id: customer.customer_id,
-        feature_id: "api-calls",
-        usage: 1,
-        idempotency_key: "unique-operation-456"
-      });
+      await client.usage.track(
+        customer.cus_id,
+        "api-calls",
+        1,
+        "unique-operation-456"
+      );
 
       // 5. Get Usage Statistics
-      const usage = await client.getUsage({
-        customer_id: customer.customer_id,
-        feature_id: "api-calls"
-      });
-      console.log(`API calls used: ${usage.total_usage}`);
-      if (usage.usage_remaining) {
-        console.log(`Remaining: ${usage.usage_remaining}`);
+      const usageRes = await client.usage.get(customer.cus_id, "api-calls");
+      if (usageRes.ok && usageRes.data.length) {
+        const u = usageRes.data[0];
+        console.log(`API calls used: ${u.totalUsage}`);
+        if (u.remaining != null) console.log(`Remaining: ${u.remaining}`);
       }
     } else {
       console.log("Customer needs to upgrade for access");
@@ -586,19 +475,14 @@ async function withRealTimeEvents() {
   const client = new SnapPay();
 
   // Set up event handlers
-  client.on("subscription.created",
-    (e) => console.log(`New subscription for ${e.customer_id}`)
-  );
-  client.on("payment_intent.succeeded",
-    (e) => console.log(`Payment successful for ${e.customer_id}`)
-  );
+  // ...
 
   // Start listening for events
   await client.startEvents();
 
   // Your main application logic here
   // Events will be processed in the background
-  await new Promise(resolve => setTimeout(resolve, 60000)); // Run for 1 minute
+  await new Promise((resolve) => setTimeout(resolve, 60000)); // Run for 1 minute
 
   // Stop events gracefully
   await client.stopEvents();
