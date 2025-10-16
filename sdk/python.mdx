@@ -48,31 +48,13 @@ from snappay import SnapPay
 async def main():
     # Using environment variable (recommended)
     async with SnapPay() as client:
-        customer = await client.get_customer("cus_123", email="user@example.com")
+        customer = await client.customers.get("cus_123", email="user@example.com")
 
     # Using direct API key
     async with SnapPay(api_key="pk_test_xxxxxxxxxx") as client:
-        customer = await client.get_customer("cus_123", email="user@example.com")
+        customer = await client.customers.get("cus_123", email="user@example.com")
 
 asyncio.run(main())
-```
-
-### Advanced Configuration
-
-```python
-from snappay import SnapPay, SnapPayConfig
-from snappay.config import RetryConfig, TimeoutConfig
-
-config = SnapPayConfig(
-    api_key="pk_test_xxxxxxxxxx",
-    base_url="https://api.snappay.dev",  # Custom base URL
-    retry=RetryConfig(max_retries=5, base_delay=1.0),
-    timeout=TimeoutConfig(total=30, connect=10),
-)
-
-async with SnapPay(config=config) as client:
-    # Use configured client
-    pass
 ```
 
 ## Core Methods
@@ -90,7 +72,7 @@ from snappay import SnapPay
 
 async with SnapPay() as client:
     customer = await client.customers.get(
-        cusId="cus_123",
+        customer_id="cus_123",
         email="user@example.com",
         name="John Doe"  # Optional
     )
@@ -99,8 +81,8 @@ async with SnapPay() as client:
 
 **Parameters:**
 
-- `cusId` (str): Customer identifier
-- `email` (Optional[str]): Customer email address
+- `customer_id` (str): Customer identifier
+- `email` (str): Customer email address
 - `name` (Optional[str]): Customer full name
 
 **Returns:** `Customer` object with:
@@ -108,11 +90,6 @@ async with SnapPay() as client:
 - `customer_id` (str): SnapPay customer ID
 - `email` (str): Customer email
 - `name` (Optional[str]): Customer name
-- `status` (str): Customer account status
-- `env` (str): Environment (test/live)
-- `stripe_customer_id` (Optional[str]): Stripe customer ID
-- `created_at` (Optional[str]): Creation timestamp
-- `updated_at` (Optional[str]): Last update timestamp
 
 ### Checkout Sessions
 
@@ -129,9 +106,7 @@ async with SnapPay() as client:
         product_id="premium-plan",
         success_url="https://yourapp.com/success",
         cancel_url="https://yourapp.com/cancel",  # Optional
-        provider=Provider.STRIPE,  # Default: STRIPE
-        # Additional checkout parameters
-        metadata={"order_id": "ord_456"}
+        price_id="b33a17d0-0e8a-4762-b9e5-dc19fde35daa" # Optional
     )
     print(f"Checkout URL: {session['url']}")
 ```
@@ -142,8 +117,7 @@ async with SnapPay() as client:
 - `product_id` (str): Product ID from your SnapPay dashboard
 - `success_url` (str): URL to redirect after successful payment
 - `cancel_url` (Optional[str]): URL to redirect on cancellation
-- `provider` (Provider): Payment provider (defaults to STRIPE)
-- `**kwargs`: Additional checkout session parameters
+- `price_id` (Optional[str]): The specific price you want to create the checkout session with
 
 **Returns:** `CheckoutSession` object with:
 
@@ -187,9 +161,9 @@ async with SnapPay() as client:
 
 - `has_access` (bool): Whether customer has access
 - `feature_id` (str): Feature being checked
-- `usage` (Optional[int]): Total usage
-- `allowance` (Optional[int]): Maximum usage allowed
-- `next_reset_at` (Optional[int]): Next reset timestamp
+- `usage` (Optional[int]): Total usage (null if the feature is unlimited/no access)
+- `allowance` (Optional[int]): Maximum usage allowed (null if the feature is unlimited/no access)
+- `next_reset_at` (Optional[int]): Next reset timestamp (null if the feature is unlimited/no access)
 
 ### Usage Tracking
 
@@ -204,8 +178,7 @@ async with SnapPay() as client:
     result = await client.usage.track(
         customer_id="cus_123",
         feature_id="ai-messages",
-        usage=1,  # or 1.5 for fractional usage
-        idempotency_key="unique-operation-123"  # Optional
+        usage=1
     )
     print(f"Usage tracked successfully: {result}")
 ```
@@ -214,8 +187,9 @@ async with SnapPay() as client:
 
 - `customer_id` (str): SnapPay customer ID
 - `feature_id` (str): Feature identifier for usage tracking
-- `usage` (Union[int, float]): Usage amount to track
-- `idempotency_key` (Optional[str]): Prevents duplicate tracking
+- `usage` (int): Usage amount to track
+- `idempotency_key` (Optional[str]): Prevents duplicate tracking (default to a random UUID if not set)
+
 
 **Returns:** `TrackUsageResponse` object with tracking confirmation details.
 
@@ -245,7 +219,14 @@ async with SnapPay() as client:
 - `customer_id` (str): SnapPay customer ID
 - `feature_id` (str): Feature identifier
 
-**Returns:** `GetUsageResponse` object with current usage and limits.
+**Returns:** List of `GetUsageResponse` objects. Each object will contain:
+- `total_usage` (int): The cumulative amount of the feature used by the customer.
+- `product_id` (str): Product identifier associated with the usage.
+- `feature_id` (str): Specific feature identifier for which the usage is tracked.
+- `remaining` (Optional[int]): The remaining amount of the feature usage allowed.
+- `limit` (Optional[int]): The maximum usage limit set for the feature.
+- `next_reset_at` (Optional[str]): Timestamp indicating when the usage will reset.
+
 
 ## Real-time Event Handling
 
@@ -321,91 +302,6 @@ event = SSEEvent(
 )
 ```
 
-### Advanced Event Configuration
-
-```python
-from snappay import SnapPay
-
-async def main():
-    async with SnapPay() as client:
-        # Configure SSE client
-        client.events(reconnect_interval=5, max_reconnect_attempts=10)
-
-        # Stream with configuration
-        async for event in client.stream_events(
-            reconnect_interval=5,
-            max_reconnect_attempts=10,
-            include_system_events=False,
-        ):
-            print(f"Event: {event.type}")
-
-asyncio.run(main())
-```
-
-### Production Considerations
-
-- Use `client.on_event(SSEEventType.HEARTBEAT, ...)` to handle heartbeats if needed.
-- Use `client.on_any_event(handler)` to observe all events.
-- Configure reconnection via `SnapPayConfig().sse` or `client.events(...)`.
-
-**Key Benefits Demonstrated:**
-
-- ✅ **Zero webhook infrastructure** - no endpoints, no servers, no security concerns
-- ✅ **Instant event processing** - no webhook delivery delays or failures
-- ✅ **Simplified error handling** - no webhook verification or retry logic needed
-- ✅ **Clean separation of concerns** - focus on business logic, not webhook plumbing
-
-## Type Definitions
-
-The SDK provides comprehensive type definitions using `typing.TypedDict` for full type safety and excellent IDE support:
-
-```python
-from typing import TypedDict, Optional, Union, Dict, Any
-from snappay.types import (
-    Customer, CheckoutSession, AccessCheck,
-    TrackUsageResponse, GetUsageResponse, Provider
-)
-from snappay import SSEEvent
-
-# Core response types
-class Customer(TypedDict, total=False):
-    customer_id: str
-    email: str
-    name: Optional[str]
-    status: str
-    env: str
-    created_at: Optional[str]
-    updated_at: Optional[str]
-    metadata: Optional[Dict[str, Any]]
-    stripe_customer_id: Optional[str]
-    deleted: Optional[bool]
-
-class CheckoutSession(TypedDict, total=False):
-    session_id: str
-    url: str
-    expires_at: str
-    status: Optional[str]
-    customer_id: Optional[str]
-    product_id: Optional[str]
-    success_url: Optional[str]
-    cancel_url: Optional[str]
-    provider: Optional[str]
-
-class AccessCheck(TypedDict, total=False):
-    has_access: bool
-    feature_id: str
-    usage: Optional[int]
-    allowance: Optional[int]
-    next_reset_at: Optional[int]
-
-# Event class
-# from snappay import SSEEvent (class with id, type, data, created_at)
-
-# Enums
-class Provider(Enum):
-    STRIPE = "stripe"
-```
-
 ## Error Handling
 
 The SDK provides a comprehensive exception hierarchy for robust error handling:
@@ -421,7 +317,7 @@ from snappay import (
 async def comprehensive_error_handling():
     async with SnapPay() as client:
         try:
-            await client.get_customer("cus_123", email="test@example.com")
+            await client.customers.get("cus_123", email="test@example.com")
 
         except AuthenticationError as e:
             print(f"Invalid API key: {e}")
@@ -465,99 +361,3 @@ SnapPayError                    # Base exception
 ├── PaymentError                # Payment processing failures
 └── ServerError                 # Server-side errors (5xx responses)
 ```
-
-## Complete Integration Example
-
-Here's a comprehensive example showing all major SDK features:
-
-```python
-import asyncio
-from snappay import SnapPay, Provider, SSEEventType
-
-async def main():
-    async with SnapPay() as client:
-        try:
-            # 1. Customer Management
-            customer = await client.customers.get(
-                cusId="customer_123",
-                email="customer@example.com",
-                name="John Doe"
-            )
-            print(f"Customer ID: {customer['customer_id']}")
-
-            # 2. Create Checkout Session
-            checkout = await client.checkout.create_session(
-                customer_id=customer["customer_id"],
-                product_id="premium-plan",
-                success_url="https://yourapp.com/success",
-                cancel_url="https://yourapp.com/cancel",
-                provider=Provider.STRIPE
-            )
-            print(f"Checkout URL: {checkout['url']}")
-
-            # 3. Check Access (after customer completes purchase)
-            access = await client.access.check(
-                customer_id=customer["customer_id"],
-                feature_id="premium-features"
-            )
-
-            if access["has_access"]:
-                print("Customer has access!")
-
-                # 4. Track Feature Usage
-                await client.usage.track(
-                    customer_id=customer["customer_id"],
-                    feature_id="api-calls",
-                    usage=1,
-                    idempotency_key="unique-operation-456"
-                )
-
-                # 5. Get Usage Statistics
-                usage_list = await client.usage.get(
-                    customer_id=customer["customer_id"],
-                    feature_id="api-calls"
-                )
-                if usage_list:
-                    usage = usage_list[0]
-                    print(f"API calls used: {usage['total_usage']}")
-                    if usage.get('remaining') is not None:
-                        print(f"Remaining: {usage['remaining']}")
-            else:
-                print("Customer needs to upgrade for access")
-
-        except Exception as e:
-            print(f"Error: {e}")
-
-async def with_real_time_events():
-    async with SnapPay() as client:
-        client.on_event(SSEEventType.SUBSCRIPTION_UPDATED,
-                        lambda e: print(f"Subscription updated: {e.data}"))
-        await client.start_events()
-        await asyncio.sleep(60)
-        await client.stop_events()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-    # Or run with events
-    # asyncio.run(with_real_time_events())
-```
-
-## Service-Based Architecture
-
-For more advanced usage, you can access services directly:
-
-```python
-async def advanced_usage():
-    async with SnapPay() as client:
-        # Access individual services
-        customer_service = client.customers
-        checkout_service = client.checkout
-        access_service = client.access
-        usage_service = client.usage
-
-        # Use services directly (same methods as client)
-        customer = await customer_service.get("cus_123")
-        access = await access_service.check("cus_123", "feature_123")
-```
-
-This completes the SnapPay Python SDK documentation. The SDK provides a powerful, type-safe, and async-first interface for payment and subscription management.
