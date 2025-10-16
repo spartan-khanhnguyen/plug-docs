@@ -95,7 +95,6 @@ if (!result.ok) {
 - `customerId` (string): SnapPay customer ID
 - `email` (string): Customer email
 - `name` (string): Customer name
-- `status` (string): Customer account status
 
 ### Checkout Sessions
 
@@ -111,9 +110,7 @@ const result = await client.checkout.createSession(
   "premium-plan",
   "https://yourapp.com/success",
   "https://yourapp.com/cancel", // Optional
-  null, // Optional priceId
-  Provider.STRIPE, // Default
-  { metadata: { order_id: "ord_456" } }
+  "price_id", // Optional priceId
 );
 if (!result.ok) {
   console.error(result.error.message);
@@ -128,8 +125,7 @@ if (!result.ok) {
 - `productId` (string): Product ID from your SnapPay dashboard
 - `successUrl` (string): URL to redirect after successful payment
 - `cancelUrl` (string, optional): URL to redirect on cancellation
-- `provider` (Provider): Payment provider (defaults to STRIPE)
-- Additional checkout session parameters
+- `priceId` (string, optional): The optional price ID
 
 **Returns:** `CheckoutSession` object with:
 
@@ -173,8 +169,7 @@ if (!result.ok) {
 - `featureId` (string): Feature being checked
 - `usage` (number | null): Current usage (null if unlimited/no access)
 - `allowance` (number | null): Usage limit (null if unlimited/no access)
-- `nextResetAt` (number | null): Next reset timestamp (epoch seconds)
-
+- `nextResetAt` (number | null): Next reset timestamp in epoch seconds (null if unlimited/no access)
 ### Usage Tracking
 
 #### usage.track
@@ -182,12 +177,12 @@ if (!result.ok) {
 Reports usage for a metered feature. This action is idempotent to prevent duplicate tracking.
 
 ```javascript
-const result = await client.usage.track({
-  customerId: "cus_123",
-  featureId: "ai-messages",
-  usage: 1, // or 1.5 for fractional usage
-  idempotencyKey: "unique-operation-123", // Optional
-});
+const result = await client.usage.track(
+  "cus_123", // customer ID
+  "ai-messages", // feature ID
+  1, // usage
+  "unique-operation-123", // Idempotency Key, Optional  (random UUID if not set)
+);
 if (!result.ok) {
   console.error(result.error.message);
 } else {
@@ -200,9 +195,17 @@ if (!result.ok) {
 - `customerId` (string): SnapPay customer ID
 - `featureId` (string): Feature identifier for usage tracking
 - `usage` (number): Usage amount to track
-- `idempotencyKey` (string, optional): Prevents duplicate tracking
+- `idempotencyKey` (string, optional): Prevents duplicate tracking (random UUID if not set)
 
 **Returns:** `TrackUsageResponse` object with tracking confirmation details.
+
+- `success` (boolean): Indicates whether the usage tracking operation was successful.
+- `customerId` (string): The ID of the customer whose usage is being tracked.
+- `featureId` (string): The ID of the feature being tracked for usage.
+- `usageRecorded` (number): The amount of usage recorded in this operation.
+- `usageTotal` (number): The total usage amount after this operation.
+- `timestamp` (string): The timestamp when the usage was recorded.
+- `idempotencyKey` (string): A unique key to prevent duplicate tracking of this operation.
 
 #### usage.get
 
@@ -339,20 +342,6 @@ type SSEEvent =
     };
 ```
 
-### Advanced Event Configuration
-
-Configure reconnection and filtering behavior:
-
-```javascript
-async function main() {
-  const client = new SnapPay();
-  client.events({ reconnectInterval: 5, maxReconnectAttempts: 10 });
-  for await (const event of client.streamEvents({}, false)) {
-    console.log(`Event: ${event.type}`);
-  }
-}
-```
-
 ## Error Handling
 
 The SDK provides comprehensive error handling with typed exceptions:
@@ -402,97 +391,3 @@ SnapPayError                    // Base exception
 ├── NotFoundError               // Resource not found
 └── ServerError                 // Server-side errors (5xx responses)
 ```
-
-## Complete Integration Example
-
-Here's a comprehensive example showing all major SDK features:
-
-```javascript
-import { SnapPay, Provider } from "@snappay/sdk";
-
-async function main() {
-  const client = new SnapPay();
-
-  try {
-    // 1. Customer Management
-    const customerRes = await client.customers.get(
-      "customer_123",
-      "customer@example.com",
-      "John Doe"
-    );
-    const customer = customerRes.ok
-      ? customerRes.data
-      : (() => {
-          throw customerRes.error;
-        })();
-    console.log(`Customer ID: ${customer.cus_id}`);
-
-    // 2. Create Checkout Session
-    const checkout = await client.checkout.createSession(
-      customer.cus_id,
-      "premium-plan",
-      "https://yourapp.com/success",
-      "https://yourapp.com/cancel",
-      null,
-      Provider.STRIPE
-    );
-    console.log(`Checkout URL: ${checkout.url}`);
-
-    // 3. Check Access (after customer completes purchase)
-    const accessResult = await client.access.check(
-      customer.cus_id,
-      "premium-features"
-    );
-
-    if (accessResult.ok && accessResult.data.hasAccess) {
-      console.log("Customer has access!");
-
-      // 4. Track Feature Usage
-      await client.usage.track(
-        customer.cus_id,
-        "api-calls",
-        1,
-        "unique-operation-456"
-      );
-
-      // 5. Get Usage Statistics
-      const usageRes = await client.usage.get(customer.cus_id, "api-calls");
-      if (usageRes.ok && usageRes.data.length) {
-        const u = usageRes.data[0];
-        console.log(`API calls used: ${u.totalUsage}`);
-        if (u.remaining != null) console.log(`Remaining: ${u.remaining}`);
-      }
-    } else {
-      console.log("Customer needs to upgrade for access");
-    }
-  } catch (error) {
-    console.error(`Error: ${error.message}`);
-  }
-}
-
-async function withRealTimeEvents() {
-  // Example with real-time event handling
-  const client = new SnapPay();
-
-  // Set up event handlers
-  // ...
-
-  // Start listening for events
-  await client.startEvents();
-
-  // Your main application logic here
-  // Events will be processed in the background
-  await new Promise((resolve) => setTimeout(resolve, 60000)); // Run for 1 minute
-
-  // Stop events gracefully
-  await client.stopEvents();
-}
-
-// Run main integration example
-main().catch(console.error);
-
-// Or run with events
-// withRealTimeEvents().catch(console.error);
-```
-
-This completes the SnapPay JavaScript SDK documentation. The SDK provides a powerful, modern interface for all your payment and subscription management needs with JavaScript and Node.js applications.
