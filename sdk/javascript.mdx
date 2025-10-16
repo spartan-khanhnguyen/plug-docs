@@ -51,15 +51,6 @@ const client = new SnapPay();
 const clientWithKey = new SnapPay("pk_test_xxxxxxxxxx");
 ```
 
-### Advanced Configuration
-
-```javascript
-import { SnapPay } from "@snappay/sdk";
-
-// Constructor: new SnapPay(apiKey?: string, baseUrl?: string)
-const client = new SnapPay("pk_test_xxxxxxxxxx", "https://api.snappay.dev");
-```
-
 ## Core Methods
 
 All methods are async functions that return promises and must be called with `await`. The SDK uses a service-based architecture where methods are organized into logical groups: `customers`, `checkout`, `access`, and `usage`.
@@ -80,7 +71,7 @@ if (!result.ok) {
   console.error(result.error.message);
 } else {
   const customer = result.data;
-  console.log(`Customer ID: ${customer.cus_id}`);
+  console.log(`Customer ID: ${customer.customerId}`);
 }
 ```
 
@@ -181,12 +172,11 @@ const result = await client.usage.track(
   "cus_123", // customer ID
   "ai-messages", // feature ID
   1, // usage
-  "unique-operation-123", // Idempotency Key, Optional  (random UUID if not set)
 );
 if (!result.ok) {
   console.error(result.error.message);
 } else {
-  console.log(`Usage tracked successfully: ${result.data.success}`);
+  console.log(`Usage tracked successfully: ${result.data.usageTotal}`);
 }
 ```
 
@@ -199,7 +189,6 @@ if (!result.ok) {
 
 **Returns:** `TrackUsageResponse` object with tracking confirmation details.
 
-- `success` (boolean): Indicates whether the usage tracking operation was successful.
 - `customerId` (string): The ID of the customer whose usage is being tracked.
 - `featureId` (string): The ID of the feature being tracked for usage.
 - `usageRecorded` (number): The amount of usage recorded in this operation.
@@ -212,10 +201,10 @@ if (!result.ok) {
 Retrieves current usage details for a customer's feature.
 
 ```javascript
-const result = await client.usage.get({
-  customerId: "cus_123",
-  featureId: "ai-messages",
-});
+const result = await client.usage.get(
+  "cus_123",
+  "ai-messages",
+);
 if (!result.ok) {
   console.error(result.error.message);
 } else {
@@ -298,8 +287,8 @@ function handleAny(event) {
 
 async function main() {
   const client = new SnapPay();
-  client.on(SSEEventType.SUBSCRIPTION_UPDATED, handleSubscriptionUpdated);
-  client.on("*", handleAny);
+  client.onEvent(SSEEventType.SUBSCRIPTION_UPDATED, handleSubscriptionUpdated);
+  client.onAnyEvent(handleAny);
   await client.startEvents();
   await new Promise((resolve) => setTimeout(resolve, 60000));
 }
