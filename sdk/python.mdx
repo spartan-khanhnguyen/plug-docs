@@ -73,7 +73,7 @@ from snappay import SnapPay
 async with SnapPay() as client:
     customer = await client.customers.get(
         customer_id="cus_123",
-        email="user@example.com",
+        email="user@example.com", # Optional
         name="John Doe"  # Optional
     )
     print(f"Customer ID: {customer['customer_id']}")
@@ -82,7 +82,7 @@ async with SnapPay() as client:
 **Parameters:**
 
 - `customer_id` (str): Customer identifier
-- `email` (str): Customer email address
+- `email` (Optional[str]): Customer email address
 - `name` (Optional[str]): Customer full name
 
 **Returns:** `Customer` object with:
