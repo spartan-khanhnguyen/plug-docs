@@ -101,7 +101,7 @@ const result = await client.checkout.createSession(
   "premium-plan",
   "https://yourapp.com/success",
   "https://yourapp.com/cancel", // Optional
-  "price_id", // Optional priceId
+  "price_id" // Optional priceId
 );
 if (!result.ok) {
   console.error(result.error.message);
@@ -161,6 +161,7 @@ if (!result.ok) {
 - `usage` (number | null): Current usage (null if unlimited/no access)
 - `allowance` (number | null): Usage limit (null if unlimited/no access)
 - `nextResetAt` (number | null): Next reset timestamp in epoch seconds (null if unlimited/no access)
+
 ### Usage Tracking
 
 #### usage.track
@@ -171,7 +172,7 @@ Reports usage for a metered feature. This action is idempotent to prevent duplic
 const result = await client.usage.track(
   "cus_123", // customer ID
   "ai-messages", // feature ID
-  1, // usage
+  1 // usage
 );
 if (!result.ok) {
   console.error(result.error.message);
@@ -201,10 +202,7 @@ if (!result.ok) {
 Retrieves current usage details for a customer's feature.
 
 ```javascript
-const result = await client.usage.get(
-  "cus_123",
-  "ai-messages",
-);
+const result = await client.usage.get("cus_123", "ai-messages");
 if (!result.ok) {
   console.error(result.error.message);
 } else {
@@ -251,6 +249,9 @@ if (!result.ok) {
 - **Multiple consumption patterns** to fit your architecture
 - **Type-safe event objects** with full IDE support
 
+### Supported Events
+See the list of supported events: [Server-sent Event Types](/events/index)
+
 ### Stream Events (Async Iterator)
 
 Simply iterate over events as they arrive - SnapPay handles all the webhook complexity behind the scenes:
@@ -296,40 +297,6 @@ async function main() {
 main().catch(console.error);
 ```
 
-### Event Structure
-
-SSE events are normalized to a discriminated union with three types:
-
-```ts
-type SSEEvent =
-  | {
-      readonly id: string;
-      readonly type: "CONNECTION_ESTABLISHED";
-      readonly data: Record<string, never>;
-      readonly createdAt: string;
-    }
-  | {
-      readonly id: string;
-      readonly type: "HEARTBEAT";
-      readonly data: Record<string, never>;
-      readonly createdAt: string;
-    }
-  | {
-      readonly id: string;
-      readonly type: "SUBSCRIPTION_UPDATED";
-      readonly data: {
-        customerSubscriptionId: string;
-        customerId: string;
-        productId: string;
-        paymentStatus:
-          | "success"
-          | "action_required"
-          | "failed"
-          | "subscription_renewed";
-      };
-      readonly createdAt: string;
-    };
-```
 
 ## Error Handling
 

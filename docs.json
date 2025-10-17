@@ -15,19 +15,15 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": [
-              "introduction",
-              "quickstart"
-            ]
+            "pages": ["introduction", "quickstart"]
           },
           {
             "group": "SDK Usage",
-            "pages": [
-              "sdk/javascript",
-              "sdk/python",
-              "sdk/go",
-              "sdk/java"
-            ]
+            "pages": ["sdk/javascript", "sdk/python", "sdk/go", "sdk/java"]
+          },
+          {
+            "group": "Server-Sent Events",
+            "pages": ["events/index"]
           }
         ]
       }
@@ -60,10 +56,7 @@
     }
   },
   "contextual": {
-    "options": [
-     "copy",
-     "view"
-   ]
+    "options": ["copy", "view"]
   },
   "footer": {
     "socials": {
