@@ -190,7 +190,6 @@ async with SnapPay() as client:
 - `usage` (int): Usage amount to track
 - `idempotency_key` (Optional[str]): Prevents duplicate tracking (default to a random UUID if not set)
 
-
 **Returns:** `TrackUsageResponse` object with tracking confirmation details.
 
 #### usage.get
@@ -220,13 +219,13 @@ async with SnapPay() as client:
 - `feature_id` (str): Feature identifier
 
 **Returns:** List of `GetUsageResponse` objects. Each object will contain:
+
 - `total_usage` (int): The cumulative amount of the feature used by the customer.
 - `product_id` (str): Product identifier associated with the usage.
 - `feature_id` (str): Specific feature identifier for which the usage is tracked.
 - `remaining` (Optional[int]): The remaining amount of the feature usage allowed.
 - `limit` (Optional[int]): The maximum usage limit set for the feature.
 - `next_reset_at` (Optional[str]): Timestamp indicating when the usage will reset.
-
 
 ## Real-time Event Handling
 
@@ -247,6 +246,9 @@ SnapPay provides real-time events via Server-Sent Events (SSE). Subscribe to sta
 - **Clean, structured data** - no raw webhook payloads
 - **Multiple consumption patterns** to fit your architecture
 - **Type-safe event objects** with full IDE support
+
+### Supported Events
+See the list of supported events: [Server-sent Event Types](/events/index)
 
 ### Stream Events (Async Generator)
 
@@ -285,21 +287,6 @@ async def main():
         await client.stop_events()
 
 asyncio.run(main())
-```
-
-### Event Structure
-
-`SSEEvent` instances provide a normalized structure:
-
-```python
-from snappay import SSEEvent
-
-event = SSEEvent(
-    id="evt_123456",        # Unique event identifier
-    type="SUBSCRIPTION_UPDATED",
-    data={"customerId": "cus_123", "productId": "pro_456"},
-    created_at="2024-01-01T10:00:00Z",
-)
 ```
 
 ## Error Handling

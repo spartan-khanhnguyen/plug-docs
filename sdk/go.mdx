@@ -317,6 +317,9 @@ type GetUsageResponse struct {
 - **Channel-based concurrency** perfect for Go's goroutine model
 - **Context-aware** with proper cancellation support
 
+### Supported Events
+See the list of supported events: [Server-sent Event Types](/events/index)
+
 ### Stream Events (Async Generator)
 
 Consume the SSE stream via channels for direct, context-aware processing:
@@ -366,7 +369,7 @@ func main() {
 }
 ```
 
-### Event handlers
+### Event Handlers
 
 Register handlers as separate functions and wire them up succinctly:
 
@@ -425,118 +428,7 @@ func main() {
 }
 ```
 
-### Event Structure
-
-snappay transforms raw webhook payloads from payment providers into clean, structured event objects:
-
-```go
-// Event represents a single message from the event stream
-type Event struct {
-    EventID     string          `json:"event_id"`      // Unique event identifier
-    EventType   string          `json:"event_type"`    // Standardized event type
-    CustomerID  string          `json:"customer_id"`   // Your customer ID
-    Data        json.RawMessage `json:"data"`          // Relevant data only
-    CreatedAt   string          `json:"created_at"`    // Event timestamp
-}
-
-// Event payload types for type-safe unmarshaling
-type SubscriptionEventData struct {
-    Customer     Customer     `json:"customer"`
-    Subscription Subscription `json:"subscription"`
-}
-
-type InvoiceEventData struct {
-    Customer Customer `json:"customer"`
-    Invoice  Invoice  `json:"invoice"`
-}
-
-type Subscription struct {
-    ID                   string `json:"id"`
-    StripeSubscriptionID string `json:"stripe_subscription_id"`
-    Status               string `json:"status"` // 'active', 'past_due', 'canceled', etc.
-    CurrentPeriodStart   string `json:"current_period_start"`
-    CurrentPeriodEnd     string `json:"current_period_end"`
-    ProductID            string `json:"product_id"`
-}
-
-type Invoice struct {
-    ID              string  `json:"id"`
-    StripeInvoiceID string  `json:"stripe_invoice_id"`
-    Status          string  `json:"status"` // 'paid', 'open', 'void', etc.
-    AmountDue       int64   `json:"amount_due"`   // In cents
-    AmountPaid      int64   `json:"amount_paid"`  // In cents
-    Currency        string  `json:"currency"`
-    URL             *string `json:"url"` // Hosted invoice URL from Stripe
-}
-```
-
-**Key Benefits Demonstrated:**
-
-- ✅ **Zero webhook infrastructure** - no endpoints, no servers, no security concerns
-- ✅ **Instant event processing** - no webhook delivery delays or failures
-- ✅ **Channel-based concurrency** - perfect for Go's goroutine model
-- ✅ **Context-aware cancellation** - proper Go patterns for lifecycle management
-
 ## Error Handling
-
-The SDK provides comprehensive error handling following Go conventions with typed errors:
-
-```go
-package main
-
-import (
-    "context"
-    "errors"
-    "log"
-    "github.com/snappay/snappay-go"
-)
-
-func comprehensiveErrorHandling() {
-    ctx := context.Background()
-    client, err := snappay.NewClient(nil)
-    if err != nil {
-        log.Fatalf("Failed to create client: %v", err)
-    }
-
-    customer, err := customer.Get(client, ctx, customer.GetCustomerArgs{
-        CustomerId: "cus_123",
-        Email: stringPtr("user@example.com"),
-        Name:  stringPtr("John Doe"), // Optional
-    })
-
-    if err != nil {
-        // Check for specific error types
-        var authErr *snappay.AuthenticationError
-        var validationErr *snappay.ValidationError
-        var rateLimitErr *snappay.RateLimitError
-        var notFoundErr *snappay.NotFoundError
-        var serverErr *snappay.ServerError
-
-        switch {
-        case errors.As(err, &authErr):
-            log.Printf("Invalid API key: %v", authErr)
-        case errors.As(err, &validationErr):
-            log.Printf("Invalid parameters: %v", validationErr)
-        case errors.As(err, &rateLimitErr):
-            log.Printf("Rate limit exceeded: %v", rateLimitErr)
-        case errors.As(err, &notFoundErr):
-            log.Printf("Resource not found: %v", notFoundErr)
-        case errors.As(err, &serverErr):
-            log.Printf("Server error: %v", serverErr)
-        case errors.Is(err, context.DeadlineExceeded):
-            log.Printf("Request timed out: %v", err)
-        case errors.Is(err, context.Canceled):
-            log.Printf("Request was cancelled: %v", err)
-        default:
-            log.Printf("Unexpected error: %v", err)
-        }
-        return
-    }
-
-    log.Printf("Success: %+v", customer)
-}
-```
-
 ### Error Types
 
 ```go

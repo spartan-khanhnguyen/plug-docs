@@ -1,0 +1,124 @@
+---
+title: Event Types
+description: Centralized reference for all SnapPay Server-Sent Event types and payloads
+---
+
+## Server-sent Event Types
+
+Use this page as the single source of truth for event types across all SDKs. SDK docs should reference these event keys.
+
+### Event Envelope (canonical)
+
+All events share the same envelope shape, matching the server's `SseEventData<T>`:
+
+```json
+{
+  "id": "6d319a9e-5af3-4b3f-8d2f-1d0d9b5e9f76",
+  "type": "SUBSCRIPTION_UPDATED",
+  "created_at": "2025-01-01T12:00:00Z",
+  "data": {
+    /* event-specific payload */
+  }
+}
+```
+
+### Event Types
+
+- [CONNECTION_ESTABLISHED](#connection-established)
+- [SUBSCRIPTION_UPDATED](#subscription-updated)
+- [PAYMENT_UPDATED](#payment-updated)
+
+## Event Payloads
+
+### CONNECTION_ESTABLISHED
+
+This event is sent when a client successfully connects to the Server-sent event stream. The `data` object for this event is always empty.
+
+<CodeGroup>
+```json Example
+{
+  "id": "c478a514-522f-4b0c-9828-1b2a31a9c3d5",
+  "type": "CONNECTION_ESTABLISHED",
+  "created_at": "2025-01-01T12:00:00Z",
+  "data": {}
+}
+```
+</CodeGroup>
+
+### SUBSCRIPTION_UPDATED
+
+The `data` object for a `SUBSCRIPTION_UPDATED` event contains the following fields:
+
+- `customer_subscription_id` (UUID): The unique identifier for the customer's subscription.
+- `customer_id` (String): Your internal identifier for the customer.
+- `product_id` (String): The identifier for the product associated with the subscription.
+- `status` ([SubscriptionStatus](#subscriptionstatus)): The current status of the subscription.
+
+<CodeGroup>
+```json Example
+{
+  "id": "6d319a9e-5af3-4b3f-8d2f-1d0d9b5e9f76",
+  "type": "SUBSCRIPTION_UPDATED",
+  "created_at": "2025-01-01T12:00:00Z",
+  "data": {
+    "customer_subscription_id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+    "customer_id": "cus_123",
+    "product_id": "premium",
+    "status": "ACTIVE"
+  }
+}
+```
+</CodeGroup>
+
+### PAYMENT_UPDATED
+
+The `data` object for a `PAYMENT_UPDATED` event contains the following fields:
+
+- `customer_subscription_id` (UUID): The unique identifier for the customer's subscription.
+- `customer_id` (String): Your internal identifier for the customer.
+- `product_id` (String): The identifier for the product associated with the subscription.
+- `status` ([PaymentStatus](#paymentstatus)): The outcome of the payment attempt.
+- `reason` ([BillingReason](#billingreason)): The reason for the payment attempt.
+
+<CodeGroup>
+```json Example
+{
+  "id": "7e451b89-6b1f-4a8e-9d2c-2c1d8c6f8a5b",
+  "type": "PAYMENT_UPDATED",
+  "created_at": "2025-01-01T12:00:01Z",
+  "data": {
+    "customer_subscription_id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+    "customer_id": "cus_123",
+    "product_id": "premium",
+    "status": "SUCCESS",
+    "reason": "SUBSCRIPTION_CYCLE"
+  }
+}
+```
+</CodeGroup>
+
+## Enums
+
+### SubscriptionStatus
+
+- `ACTIVE`
+- `CANCELED`
+- `INCOMPLETE`
+- `PAST_DUE`
+- `UNPAID`
+- `EXPIRED`
+
+### PaymentStatus
+
+- `SUCCESS`
+- `ACTION_REQUIRED`
+- `FAILED`
+
+### BillingReason
+
+- `SUBSCRIPTION_CREATE`
+- `SUBSCRIPTION_CYCLE`
+- `SUBSCRIPTION_UPDATE`
+- `SUBSCRIPTION_THRESHOLD`
+- `MANUAL`
+- `UNKNOWN`
