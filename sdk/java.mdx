@@ -56,7 +56,6 @@ The SDK client is configured via a primary constructor that accepts a configurat
 
 Authentication is handled via an API key that must start with `pk_test_` (for testing) or `pk_live_` (for production). Configure your API key in one of these ways:
 
-
 ### SnapPay Client
 
 ```java
@@ -90,11 +89,13 @@ public abstract fun get(
 ```
 
 **Parameters:**
+
 - `id` (String): Customer identifier
 - `email` (String, optional): Customer email address
 - `name` (String, optional): Customer full name
 
 **Returns:**
+
 ```java
 public interface Customer {
     String getId();
@@ -133,6 +134,7 @@ public abstract fun createSession(
 ```
 
 **Parameters:**
+
 - `customerId` (String): SnapPay customer ID
 - `productId` (String): Product ID from your SnapPay dashboard
 - `priceId` (String): Price ID from your SnapPay dashboard
@@ -141,6 +143,7 @@ public abstract fun createSession(
 - `provider` (Provider): Payment provider (defaults to STRIPE)
 
 **Returns:**
+
 ```java
 public interface CheckoutSession {
     String getUrl();
@@ -161,17 +164,21 @@ var access = client.getAccess().check(
     "sand-ft-messages"
 );
 ```
+
 ```java
 public abstract fun check(
     customerId: String,
     featureId: String
 ): AccessResult
 ```
+
 **Parameters:**
+
 - `customerId` (String): SnapPay customer ID
 - `featureId` (String): Feature identifier
 
-**Returns:** 
+**Returns:**
+
 ```java
 public interface AccessResult {
     boolean getHasAccess();
@@ -204,13 +211,16 @@ public abstract fun track(
     idempotencyKey: String?
 ): TrackUsage
 ```
+
 **Parameters:**
+
 - `customerId` (String): SnapPay customer ID
 - `featureId` (String): Feature identifier for usage tracking
 - `usage` (Double): Usage amount to track
 - `idempotencyKey` (String, optional): Prevents duplicate tracking
 
-**Returns:** 
+**Returns:**
+
 ```java
 public interface TrackUsage {
     String getCustomerId();
@@ -238,10 +248,12 @@ public abstract fun get(
 ```
 
 **Parameters:**
+
 - `customerId` (String): SnapPay customer ID
 - `featureId` (String): Feature identifier
 
 **Returns:**
+
 ```java
 public interface GetUsage {
     int getTotalUsage();
@@ -258,6 +270,7 @@ public interface GetUsage {
 **Say goodbye to webhook hell!** SnapPay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE) using reactive patterns.
 
 ### 🚫 What You DON'T Need:
+
 - **No webhook endpoints** to create and maintain
 - **No webhook signature verification**
 - **No webhook retry logic** or failure handling
@@ -265,11 +278,26 @@ public interface GetUsage {
 - **No debugging webhook delivery issues**
 
 ### ✅ What You GET:
+
 - **Real-time events** delivered instantly via reactive streams
 - **Guaranteed delivery** with automatic reconnection
 - **Clean, structured data** - no raw webhook payloads
 - **Reactive programming** perfect for Java's async ecosystem
 - **Type-safe event objects** with comprehensive error handling
+
+### Event Structure
+
+```java
+public interface SseEvent {
+    String getId();
+    SseEventType getType();
+    Map<?, ?> getData();
+    String getCreatedAt();
+}
+```
+
+### Supported Events
+See the list of supported events: [Server-sent Event Types](/events/index)
 
 ### Reactive Event Streaming
 
@@ -307,84 +335,10 @@ publisher.subscribe(new Flow.Subscriber<>() {
 
 ```
 
-### Event Structure
-
-```java
-public interface SseEvent {
-    String getId();
-    SseEventType getType();
-    Map<?, ?> getData();
-    String getCreatedAt();
-}
-```
 
 **Key Benefits Demonstrated:**
+
 - ✅ **Zero webhook infrastructure** - no endpoints, no servers, no security concerns
 - ✅ **Instant event processing** - no webhook delivery delays or failures
 - ✅ **Reactive programming** - perfect for Java's async ecosystem
 - ✅ **Type-safe event handling** - compile-time safety with comprehensive error handling
-
-
-### Supported events
-
-CONNECTION_ESTABLISHED
-```java
-CONNECTION_ESTABLISHED
-
-getData(): return Collections.emptyMap();
-```
-
-HEARTBEAT
-```java
-HEARTBEAT
-
-getData(): return Collections.emptyMap();
-```
-
-SUBSCRIPTION_UPDATED
-```java
-SUBSCRIPTION_UPDATED
-
-getData(): return Map.of(
-    "customerSubscriptionId",
-    "customerId",
-    "productId",
-    "status" // SubscriptionStatus
-);
-
-SubscriptionStatus {
-  ACTIVE,
-  CANCELED,
-  INCOMPLETE,
-  PAST_DUE,
-  UNPAID,
-  EXPIRED,
-}
-```
-
-PAYMENT_UPDATED
-```java
-PAYMENT_UPDATED
-
-getData(): return Map.of(
-    "customerSubscriptionId",
-    "customerId",
-    "productId",
-    "status", // PaymentStatus
-    "reason" // BillingReason
-);
-
-PaymentStatus {
-    SUCCESS,
-    ACTION_REQUIRED,
-    FAILED,
-}
-
-BillingReason {
-    SUBSCRIPTION_CREATE,
-    SUBSCRIPTION_CYCLE,
-    SUBSCRIPTION_UPDATE,
-    SUBSCRIPTION_THRESHOLD,
-    MANUAL,
-}
-```

@@ -5,7 +5,7 @@ description: Complete guide for integrating SnapPay with Go applications using i
 
 ## Overview
 
-The SnapPay Go SDK provides a comprehensive, idiomatic interface for integrating payment processing, subscription management, and real-time event streaming into your Go applications. Built with modern Go patterns including context support, channel-based concurrency, and explicit error handling, it offers seamless integration with snappay's complete platform.
+The SnapPay Go SDK provides a comprehensive, idiomatic interface for integrating payment processing, subscription management, and real-time event streaming into your Go applications. Built with modern Go patterns including context support, channel-based concurrency, and explicit error handling, it offers seamless integration with SnapPay's platform.
 
 **Requirements:** Go 1.21+
 
@@ -27,6 +27,7 @@ go get github.com/snappay/snappay-go
 ```
 
 Add to your `go.mod`:
+
 ```go
 module your-app
 
@@ -46,11 +47,13 @@ The SDK client is configured via a constructor function that accepts an optional
 Authentication is handled via an API key that must start with `pk_test_` (for testing) or `pk_live_` (for production). Configure your API key in one of these ways:
 
 **Environment Variable (Recommended):**
+
 ```bash
 export SNAPPAY_API_KEY="pk_test_xxxxxxxxxx"
 ```
 
 **Direct Configuration:**
+
 ```go
 package main
 
@@ -58,6 +61,7 @@ import (
     "context"
     "log"
     "github.com/snappay/snappay-go"
+    "github.com/snappay/snappay-go/services"
 )
 
 func main() {
@@ -68,32 +72,12 @@ func main() {
     }
 
     // Using direct API key
-    client, err := snappay.NewClient(&snappay.Config{
+    client, err = snappay.NewClient(&services.Config{
         APIKey: "pk_test_xxxxxxxxxx",
     })
     if err != nil {
         log.Fatalf("Failed to create client: %v", err)
     }
-}
-```
-
-### Advanced Configuration
-
-```go
-import "time"
-
-config := &snappay.Config{
-    APIKey:     "pk_test_xxxxxxxxxx",
-    BaseURL:    "https://api.snappay.dev",  // Custom base URL
-    HTTPClient: &http.Client{                // Custom HTTP client
-        Timeout: 30 * time.Second,
-    },
-    UserAgent: "MyApp/1.0.0",               // Custom user agent
-}
-
-client, err := snappay.NewClient(config)
-if err != nil {
-    log.Fatalf("Failed to create client: %v", err)
 }
 ```
 
@@ -108,11 +92,13 @@ All methods accept a `context.Context` as the first parameter and return a resul
 Retrieves or creates a customer record (upsert logic).
 
 ```go
+import "github.com/snappay/snappay-go/services/customer"
+
 ctx := context.Background()
-customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
-    CusID: "cus_123",
-    Email: "user@example.com",
-    Name:  "John Doe", // Optional
+customer, err := customer.Get(client, ctx, customer.GetCustomerArgs{
+    CustomerId: "cus_123",
+    Email: "user@example.com", // Optional
+    Name:  stringPtr("John Doe"), // Optional
 })
 if err != nil {
     log.Fatalf("Failed to get customer: %v", err)
@@ -121,20 +107,18 @@ fmt.Printf("Customer ID: %s\n", customer.CustomerID)
 ```
 
 **Parameters:**
-- `CusID` (string): Customer identifier
-- `Email` (*string): Customer email address (optional)
-- `Name` (*string): Customer full name (optional)
+
+- `CustomerId` (string): Customer identifier
+- `Email` (\*string): Customer email address (optional)
+- `Name` (\*string): Customer full name (optional)
 
 **Returns:** `(*Customer, error)`
+
 ```go
 type Customer struct {
-    CustomerID string  `json:"customer_id"` // SnapPay customer ID
+    CustomerID string  `json:"cus_id"`      // SnapPay customer ID
     Email      string  `json:"email"`       // Customer email
     Name       *string `json:"name"`        // Customer name (optional)
-    Status     string  `json:"status"`      // Customer account status
-    Env        string  `json:"env"`         // Environment (test/live)
-    CreatedAt  *string `json:"created_at"`  // Creation timestamp
-    UpdatedAt  *string `json:"updated_at"`  // Last update timestamp
 }
 ```
 
@@ -145,18 +129,14 @@ type Customer struct {
 Creates a payment checkout session URL for customer purchases.
 
 ```go
-import "github.com/snappay/snappay-go"
+import "github.com/snappay/snappay-go/services/checkout"
 
 ctx := context.Background()
-session, err := client.CreateCheckoutSession(ctx, snappay.CreateCheckoutSessionArgs{
+session, err := checkout.CreateSession(client, ctx, checkout.CreateCheckoutSessionArgs{
     CustomerID: "cus_123",
     ProductID:  "premium-plan",
     SuccessURL: "https://yourapp.com/success",
     CancelURL:  stringPtr("https://yourapp.com/cancel"), // Optional
-    Provider:   snappay.ProviderStripe,                 // Default: ProviderStripe
-    Metadata: map[string]string{                         // Optional
-        "order_id": "ord_456",
-    },
 })
 if err != nil {
     log.Fatalf("Failed to create checkout session: %v", err)
@@ -165,14 +145,15 @@ fmt.Printf("Checkout URL: %s\n", session.URL)
 ```
 
 **Parameters:**
+
 - `CustomerID` (string): SnapPay customer ID
 - `ProductID` (string): Product ID from your snappay dashboard
+- `PriceID` (\*string): Price ID from your snappay dashboard (optional)
 - `SuccessURL` (string): URL to redirect after successful payment
-- `CancelURL` (*string): URL to redirect on cancellation (optional)
-- `Provider` (Provider): Payment provider (defaults to ProviderStripe)
-- `Metadata` (map[string]string): Additional checkout parameters (optional)
+- `CancelURL` (\*string): URL to redirect on cancellation (optional)
 
 **Returns:** `(*CheckoutSession, error)`
+
 ```go
 type CheckoutSession struct {
     SessionID string  `json:"session_id"` // Unique session identifier
@@ -188,8 +169,10 @@ type CheckoutSession struct {
 Checks if a customer has access to a specific feature based on their subscription and usage limits.
 
 ```go
+import "github.com/snappay/snappay-go/services/access"
+
 ctx := context.Background()
-access, err := client.CheckAccess(ctx, snappay.CheckAccessArgs{
+access, err := access.Check(client, ctx, access.CheckAccessArgs{
     CustomerID: "cus_123",
     FeatureID:  "premium-features",
 })
@@ -198,10 +181,12 @@ if err != nil {
 }
 
 if access.HasAccess {
-    if access.UsageRemaining != nil {
-        fmt.Printf("Access granted! Remaining usage: %d\n", *access.UsageRemaining)
+    if access.Usage != nil && access.Allowance != nil {
+        remaining := *access.Allowance - *access.Usage
+        fmt.Printf("Access granted. %d/%d used\n", *access.Usage, *access.Allowance)
+        fmt.Printf("Remaining: %d\n", remaining)
     } else {
-        fmt.Println("Access granted with unlimited usage!")
+        fmt.Println("Access granted (unlimited feature)")
     }
 } else {
     fmt.Println("Access denied. Upgrade required.")
@@ -209,21 +194,19 @@ if access.HasAccess {
 ```
 
 **Parameters:**
+
 - `CustomerID` (string): SnapPay customer ID
 - `FeatureID` (string): Feature identifier
 
 **Returns:** `(*AccessCheck, error)`
+
 ```go
 type AccessCheck struct {
-    HasAccess          bool    `json:"has_access"`            // Whether customer has access
-    FeatureID          string  `json:"feature_id"`            // Feature being checked
-    CustomerID         string  `json:"customer_id"`           // Customer being checked
-    UsageRemaining     *int64  `json:"usage_remaining"`       // Remaining usage units
-    UsageTotal         *int64  `json:"usage_total"`           // Total usage so far
-    UsageLimit         *int64  `json:"usage_limit"`           // Maximum usage allowed
-    ResetDate          *string `json:"reset_date"`            // When usage resets
-    SubscriptionStatus *string `json:"subscription_status"`   // Current subscription status
-    ExpiresAt          *string `json:"expires_at"`            // Access expiration timestamp
+    HasAccess   bool   `json:"has_access"`
+    FeatureID   string `json:"feature_id"`
+    Usage       *int64 `json:"usage"`
+    Allowance   *int64 `json:"allowance"`
+    NextResetAt *int64 `json:"next_reset_at"`
 }
 ```
 
@@ -234,29 +217,38 @@ type AccessCheck struct {
 Reports usage for a metered feature. This action is idempotent to prevent duplicate tracking.
 
 ```go
+import "github.com/snappay/snappay-go/services/usage"
+
 ctx := context.Background()
-result, err := client.TrackUsage(ctx, snappay.TrackUsageArgs{
+result, err := usage.Track(client, ctx, usage.TrackUsageArgs{
     CustomerID:     "cus_123",
     FeatureID:      "ai-messages",
-    Usage:          1,   // or 1.5 for fractional usage
+    Usage:          1,   // integer usage units
     IdempotencyKey: stringPtr("unique-operation-123"), // Optional
 })
 if err != nil {
     log.Fatalf("Failed to track usage: %v", err)
 }
-fmt.Printf("Usage tracked successfully: %t\n", result.Success)
+fmt.Printf("Tracked %d units. Total: %d (idempotency: %v)\n", result.Added, result.Used, result.IdempotencyKey)
 ```
 
 **Parameters:**
+
 - `CustomerID` (string): SnapPay customer ID
 - `FeatureID` (string): Feature identifier for usage tracking
-- `Usage` (float64): Usage amount to track
-- `IdempotencyKey` (*string): Prevents duplicate tracking (optional)
+- `Usage` (int64): Usage amount to track
+- `IdempotencyKey` (\*string): Prevents duplicate tracking (optional)
 
 **Returns:** `(*TrackUsageResponse, error)`
+
 ```go
 type TrackUsageResponse struct {
-    Success bool `json:"success"` // Tracking confirmation
+	CustomerID     string  `json:"customer_id"`     // Customer ID
+	FeatureID      string  `json:"feature_id"`      // Feature ID
+	UsageRecorded  int64   `json:"usage_recorded"`  // Amount of usage recorded
+	UsageTotal     int64   `json:"usage_total"`     // Total usage after this operation
+	Timestamp      string  `json:"timestamp"`       // Timestamp of the operation
+	IdempotencyKey *string `json:"idempotency_key"` // Idempotency key used (if any)
 }
 ```
 
@@ -266,29 +258,42 @@ Retrieves current usage details for a customer's feature.
 
 ```go
 ctx := context.Background()
-usage, err := client.GetUsage(ctx, snappay.GetUsageArgs{
+items, err := usage.Get(client, ctx, usage.GetUsageArgs{
     CustomerID: "cus_123",
     FeatureID:  "ai-messages",
 })
 if err != nil {
     log.Fatalf("Failed to get usage: %v", err)
 }
-
-fmt.Printf("Total usage: %d\n", usage.TotalUsage)
-fmt.Printf("Remaining: %s\n", formatUsage(usage.Remaining))
-fmt.Printf("Limit: %s\n", formatUsage(usage.Limit))
+for i, u := range *items {
+    fmt.Printf("Record %d:\n", i+1)
+    fmt.Printf("  Product ID: %s\n", u.ProductID)
+    fmt.Printf("  Feature ID: %s\n", u.FeatureID)
+    fmt.Printf("  Total usage: %d\n", u.TotalUsage)
+    fmt.Printf("  Remaining: %s\n", formatUsage(u.Remaining))
+    fmt.Printf("  Limit: %s\n", formatUsage(u.Limit))
+    if u.NextResetAt != nil {
+        fmt.Printf("  Next reset: %d\n", *u.NextResetAt)
+    }
+    fmt.Println()
+}
 ```
 
 **Parameters:**
+
 - `CustomerID` (string): SnapPay customer ID
 - `FeatureID` (string): Feature identifier
 
-**Returns:** `(*GetUsageResponse, error)`
+**Returns:** `(*[]GetUsageResponse, error)`
+
 ```go
 type GetUsageResponse struct {
-    Limit      *int64 `json:"limit"`       // Total limit for period (nil for unlimited)
-    TotalUsage int64  `json:"total_usage"` // Total usage in current billing period
-    Remaining  *int64 `json:"remaining"`   // Remaining usage (nil if limit is nil)
+	TotalUsage  int64  `json:"total_usage"`
+	ProductID   string `json:"product_id"`
+	FeatureID   string `json:"feature_id"`
+	Remaining   *int64 `json:"remaining,omitempty"`
+	Limit       *int64 `json:"limit,omitempty"`
+	NextResetAt *int64 `json:"next_reset_at,omitempty"`
 }
 ```
 
@@ -297,6 +302,7 @@ type GetUsageResponse struct {
 **Say goodbye to webhook hell!** snappay eliminates the complexity of managing payment webhooks by processing all provider webhooks (Stripe, PayPal, etc.) internally and delivering clean, structured events directly to your application via Server-Sent Events (SSE) using Go channels.
 
 ### 🚫 What You DON'T Need:
+
 - **No webhook endpoints** to create and maintain
 - **No webhook signature verification**
 - **No webhook retry logic** or failure handling
@@ -304,466 +310,125 @@ type GetUsageResponse struct {
 - **No debugging webhook delivery issues**
 
 ### ✅ What You GET:
+
 - **Real-time events** delivered instantly via Go channels
 - **Guaranteed delivery** with automatic reconnection
 - **Clean, structured data** - no raw webhook payloads
 - **Channel-based concurrency** perfect for Go's goroutine model
 - **Context-aware** with proper cancellation support
 
-### Channel-Based Event Streaming
+### Supported Events
+See the list of supported events: [Server-sent Event Types](/events/index)
 
-Simply receive events from channels as they arrive - snappay handles all the webhook complexity behind the scenes:
+### Stream Events (Async Generator)
+
+Consume the SSE stream via channels for direct, context-aware processing:
 
 ```go
 package main
 
 import (
     "context"
-    "encoding/json"
     "log"
     "os/signal"
     "syscall"
-    "github.com/snappay/snappay-go"
+    "github.com/snappay/snappay-sdk-go"
+    "github.com/snappay/snappay-sdk-go/services/sse"
 )
 
 func main() {
-    // Graceful shutdown context
     ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
     defer stop()
 
     client, err := snappay.NewClient(nil)
     if err != nil {
-        log.Fatalf("Failed to create client: %v", err)
+        log.Fatalf("create client: %v", err)
     }
 
-    log.Println("Listening for payment events (no webhooks needed!)...")
-
-    // snappay processes Stripe/PayPal webhooks and sends you clean events
-    eventCh, errCh, err := client.ListenForEvents(ctx)
-    if err != nil {
-        log.Fatalf("Failed to start event listener: %v", err)
+    if err := client.StartEvents(ctx); err != nil {
+        log.Fatalf("start events: %v", err)
     }
+
+    evCh, errCh := client.StreamEvents(ctx)
 
     for {
         select {
         case <-ctx.Done():
-            log.Println("Shutting down...")
             return
-
         case err := <-errCh:
-            log.Printf("Event stream error: %v", err)
-            // Handle reconnection logic
-            return
-
-        case event := <-eventCh:
-            log.Printf("Event: %s", event.EventType)
-            log.Printf("Customer: %s", event.CustomerID)
-
-            // Handle purchase completion instantly
-            if event.EventType == "subscription.created" {
-                var payload snappay.SubscriptionEventData
-                if err := json.Unmarshal(event.Data, &payload); err != nil {
-                    log.Printf("Error unmarshaling: %v", err)
-                    continue
+            if err != nil { log.Printf("sse error: %v", err) }
+        case ev := <-evCh:
+            if ev == nil { continue }
+            if ev.Type == sse.EventTypeSubscriptionUpdated {
+                if d, err := ev.GetSubscriptionData(); err == nil {
+                    log.Printf("subscription: customer=%s status=%s", d.CustomerID, d.PaymentStatus)
                 }
-                log.Printf("🎉 New subscriber: %s", payload.Customer.CustomerID)
-                // Provision access immediately - no webhook delays!
-
-            } else if event.EventType == "payment_intent.succeeded" {
-                log.Printf("💰 Payment received for %s", event.CustomerID)
-                // Update user account, send receipt, etc.
             }
         }
     }
 }
 ```
 
-### Event Structure
+### Event Handlers
 
-snappay transforms raw webhook payloads from payment providers into clean, structured event objects:
-
-```go
-// Event represents a single message from the event stream
-type Event struct {
-    EventID     string          `json:"event_id"`      // Unique event identifier
-    EventType   string          `json:"event_type"`    // Standardized event type
-    CustomerID  string          `json:"customer_id"`   // Your customer ID
-    Data        json.RawMessage `json:"data"`          // Relevant data only
-    CreatedAt   string          `json:"created_at"`    // Event timestamp
-}
-
-// Event payload types for type-safe unmarshaling
-type SubscriptionEventData struct {
-    Customer     Customer     `json:"customer"`
-    Subscription Subscription `json:"subscription"`
-}
-
-type InvoiceEventData struct {
-    Customer Customer `json:"customer"`
-    Invoice  Invoice  `json:"invoice"`
-}
-
-type Subscription struct {
-    ID                   string `json:"id"`
-    StripeSubscriptionID string `json:"stripe_subscription_id"`
-    Status               string `json:"status"` // 'active', 'past_due', 'canceled', etc.
-    CurrentPeriodStart   string `json:"current_period_start"`
-    CurrentPeriodEnd     string `json:"current_period_end"`
-    ProductID            string `json:"product_id"`
-}
-
-type Invoice struct {
-    ID              string  `json:"id"`
-    StripeInvoiceID string  `json:"stripe_invoice_id"`
-    Status          string  `json:"status"` // 'paid', 'open', 'void', etc.
-    AmountDue       int64   `json:"amount_due"`   // In cents
-    AmountPaid      int64   `json:"amount_paid"`  // In cents
-    Currency        string  `json:"currency"`
-    URL             *string `json:"url"` // Hosted invoice URL from Stripe
-}
-```
-
-### Production-Ready Event Handling
-
-Here's a complete example showing how snappay eliminates webhook complexity for a SaaS application:
+Register handlers as separate functions and wire them up succinctly:
 
 ```go
 package main
 
 import (
     "context"
-    "encoding/json"
     "log"
-    "os/signal"
-    "sync"
+    "fmt"
+    "os"
+	"os/signal"
     "syscall"
-    "time"
-    "github.com/snappay/snappay-go"
+    "github.com/snappay/snappay-sdk-go"
+    "github.com/snappay/snappay-sdk-go/services/sse"
 )
 
-type PaymentProcessor struct {
-    client *snappay.Client
-    logger *log.Logger
-    wg     sync.WaitGroup
-}
-
-func NewPaymentProcessor() (*PaymentProcessor, error) {
-    client, err := snappay.NewClient(nil)
-    if err != nil {
-        return nil, err
+func handleSubscriptionUpdated(e *sse.SSEEvent) error {
+    if d, err := e.GetSubscriptionData(); err == nil {
+        log.Printf("subscription: customer=%s status=%s", d.CustomerID, d.PaymentStatus)
     }
-
-    return &PaymentProcessor{
-        client: client,
-        logger: log.Default(),
-    }, nil
-}
-
-func (p *PaymentProcessor) Start(ctx context.Context) error {
-    p.logger.Println("🚀 Starting payment processor (no webhooks needed)")
-
-    eventCh, errCh, err := p.client.ListenForEvents(ctx)
-    if err != nil {
-        return err
-    }
-
-    p.logger.Println("✨ Payment processor running - webhook-free architecture!")
-
-    for {
-        select {
-        case <-ctx.Done():
-            p.logger.Println("Shutting down payment processor...")
-            p.wg.Wait() // Wait for all event processing to complete
-            return ctx.Err()
-
-        case err := <-errCh:
-            p.logger.Printf("❌ Event stream error: %v", err)
-            // Implement exponential backoff retry logic
-            time.Sleep(5 * time.Second)
-            return err
-
-        case event := <-eventCh:
-            // Process events concurrently
-            p.wg.Add(1)
-            go func(e snappay.Event) {
-                defer p.wg.Done()
-                p.processEvent(e)
-            }(event)
-        }
-    }
-}
-
-func (p *PaymentProcessor) processEvent(event snappay.Event) {
-    p.logger.Printf("Processing event %s: %s", event.EventID, event.EventType)
-
-    switch event.EventType {
-    case "subscription.created":
-        p.handleSubscriptionCreated(event)
-    case "subscription.updated":
-        p.handleSubscriptionUpdated(event)
-    case "subscription.deleted":
-        p.handleSubscriptionCancelled(event)
-    case "invoice.payment.succeeded":
-        p.handlePaymentSucceeded(event)
-    case "invoice.payment.failed":
-        p.handlePaymentFailed(event)
-    default:
-        p.logger.Printf("Unhandled event type: %s", event.EventType)
-    }
-}
-
-func (p *PaymentProcessor) handleSubscriptionCreated(event snappay.Event) {
-    // New customer subscribed - provision access immediately
-    var payload snappay.SubscriptionEventData
-    if err := json.Unmarshal(event.Data, &payload); err != nil {
-        p.logger.Printf("❌ Failed to unmarshal subscription event: %v", err)
-        return
-    }
-
-    customerID := payload.Customer.CustomerID
-    planID := payload.Subscription.ProductID
-
-    p.logger.Printf("🎉 New subscriber: %s on plan %s", customerID, planID)
-
-    // Instant provisioning - no webhook delays or failures
-    if err := p.enablePremiumFeatures(customerID, planID); err != nil {
-        p.logger.Printf("❌ Failed to provision %s: %v", customerID, err)
-        return
-    }
-
-    if err := p.sendWelcomeEmail(payload.Customer.Email); err != nil {
-        p.logger.Printf("❌ Failed to send welcome email to %s: %v", payload.Customer.Email, err)
-    }
-
-    if err := p.updateUserDashboard(customerID, "premium"); err != nil {
-        p.logger.Printf("❌ Failed to update dashboard for %s: %v", customerID, err)
-    }
-
-    p.logger.Printf("✅ Provisioned access for %s", customerID)
-}
-
-func (p *PaymentProcessor) handlePaymentSucceeded(event snappay.Event) {
-    // Payment confirmed - extend service
-    var payload snappay.InvoiceEventData
-    if err := json.Unmarshal(event.Data, &payload); err != nil {
-        p.logger.Printf("❌ Failed to unmarshal invoice event: %v", err)
-        return
-    }
-
-    customerID := payload.Customer.CustomerID
-    amount := payload.Invoice.AmountPaid
-
-    p.logger.Printf("💰 Payment received: $%.2f from %s", float64(amount)/100, customerID)
-
-    // Process payment instantly
-    if err := p.extendServicePeriod(customerID); err != nil {
-        p.logger.Printf("❌ Failed to extend service for %s: %v", customerID, err)
-    }
-
-    if err := p.sendReceipt(payload.Customer.Email, amount); err != nil {
-        p.logger.Printf("❌ Failed to send receipt to %s: %v", payload.Customer.Email, err)
-    }
-
-    if err := p.updateBillingHistory(customerID, amount); err != nil {
-        p.logger.Printf("❌ Failed to update billing history for %s: %v", customerID, err)
-    }
-}
-
-func (p *PaymentProcessor) handleSubscriptionCancelled(event snappay.Event) {
-    // Subscription cancelled - manage gracefully
-    var payload snappay.SubscriptionEventData
-    if err := json.Unmarshal(event.Data, &payload); err != nil {
-        p.logger.Printf("❌ Failed to unmarshal subscription event: %v", err)
-        return
-    }
-
-    customerID := payload.Customer.CustomerID
-    p.logger.Printf("📋 Subscription cancelled for %s", customerID)
-
-    // Handle cancellation gracefully
-    if err := p.scheduleAccessRevocation(customerID); err != nil {
-        p.logger.Printf("❌ Failed to schedule access revocation for %s: %v", customerID, err)
-    }
-
-    if err := p.sendCancellationEmail(payload.Customer.Email); err != nil {
-        p.logger.Printf("❌ Failed to send cancellation email to %s: %v", payload.Customer.Email, err)
-    }
-
-    if err := p.triggerWinBackCampaign(customerID); err != nil {
-        p.logger.Printf("❌ Failed to trigger win-back campaign for %s: %v", customerID, err)
-    }
-}
-
-func (p *PaymentProcessor) handlePaymentFailed(event snappay.Event) {
-    var payload snappay.InvoiceEventData
-    if err := json.Unmarshal(event.Data, &payload); err != nil {
-        p.logger.Printf("❌ Failed to unmarshal invoice event: %v", err)
-        return
-    }
-
-    customerID := payload.Customer.CustomerID
-    p.logger.Printf("❌ Payment failed for %s", customerID)
-
-    // Handle payment failure
-    if err := p.sendPaymentFailedNotification(customerID, payload.Invoice.URL); err != nil {
-        p.logger.Printf("❌ Failed to send payment failed notification to %s: %v", customerID, err)
-    }
-
-    if err := p.pauseServiceAccess(customerID); err != nil {
-        p.logger.Printf("❌ Failed to pause service access for %s: %v", customerID, err)
-    }
-}
-
-// Helper functions (implement these for your app)
-func (p *PaymentProcessor) enablePremiumFeatures(customerID, planID string) error {
-    p.logger.Printf("Enabling premium features for %s on plan %s", customerID, planID)
-    // Implement premium feature enablement
     return nil
 }
 
-func (p *PaymentProcessor) sendWelcomeEmail(email string) error {
-    p.logger.Printf("Sending welcome email to %s", email)
-    // Implement email sending
+func handleAnyEvent(e *sse.SSEEvent) error {
+    if e.IsSystemEvent() { return nil }
+    log.Printf("event: %s", e.Type)
     return nil
 }
 
-func (p *PaymentProcessor) updateUserDashboard(customerID, tier string) error {
-    p.logger.Printf("Updating dashboard for %s to %s tier", customerID, tier)
-    // Implement dashboard update
-    return nil
-}
-
-func (p *PaymentProcessor) extendServicePeriod(customerID string) error {
-    p.logger.Printf("Extending service period for %s", customerID)
-    // Implement service extension
-    return nil
-}
-
-func (p *PaymentProcessor) sendReceipt(email string, amount int64) error {
-    p.logger.Printf("Sending receipt to %s for $%.2f", email, float64(amount)/100)
-    // Implement receipt sending
-    return nil
-}
-
-func (p *PaymentProcessor) updateBillingHistory(customerID string, amount int64) error {
-    p.logger.Printf("Updating billing history for %s: $%.2f", customerID, float64(amount)/100)
-    // Implement billing history update
-    return nil
-}
-
-func (p *PaymentProcessor) scheduleAccessRevocation(customerID string) error {
-    p.logger.Printf("Scheduling access revocation for %s", customerID)
-    // Implement access revocation scheduling
-    return nil
-}
-
-func (p *PaymentProcessor) sendCancellationEmail(email string) error {
-    p.logger.Printf("Sending cancellation email to %s", email)
-    // Implement cancellation email
-    return nil
-}
-
-func (p *PaymentProcessor) triggerWinBackCampaign(customerID string) error {
-    p.logger.Printf("Triggering win-back campaign for %s", customerID)
-    // Implement win-back campaign
-    return nil
-}
-
-func (p *PaymentProcessor) sendPaymentFailedNotification(customerID string, invoiceURL *string) error {
-    p.logger.Printf("Sending payment failed notification to %s", customerID)
-    // Implement payment failure notification
-    return nil
-}
-
-func (p *PaymentProcessor) pauseServiceAccess(customerID string) error {
-    p.logger.Printf("Pausing service access for %s", customerID)
-    // Implement service access pausing
-    return nil
+func setupEventHandlers(client *snappay.Client) {
+    client.OnEvent(sse.EventTypeSubscriptionUpdated, handleSubscriptionUpdated)
+    client.OnAnyEvent(handleAnyEvent)
 }
 
 func main() {
-    // Graceful shutdown context
-    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-    defer stop()
+    client, err := snappay.NewClient(nil)
+    if err != nil { log.Fatalf("create client: %v", err) }
 
-    processor, err := NewPaymentProcessor()
-    if err != nil {
-        log.Fatalf("Failed to create payment processor: %v", err)
-    }
+    setupEventHandlers(client)
 
-    // No webhook server needed - just run your payment processor!
-    if err := processor.Start(ctx); err != nil && err != context.Canceled {
-        log.Fatalf("Payment processor failed: %v", err)
-    }
+    ctx := context.Background()
+    if err := client.StartEvents(ctx); err != nil { log.Fatalf("start events: %v", err) }
 
-    log.Println("Payment processor shutdown complete")
+    // Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for interrupt signal
+	<-sigChan
+	fmt.Println("\n\n🛑 Stopping SSE connection...")
+
+	if err := client.StopEvents(); err != nil {
+		log.Printf("Error stopping events: %v", err)
+	}
 }
 ```
-
-**Key Benefits Demonstrated:**
-- ✅ **Zero webhook infrastructure** - no endpoints, no servers, no security concerns
-- ✅ **Instant event processing** - no webhook delivery delays or failures
-- ✅ **Channel-based concurrency** - perfect for Go's goroutine model
-- ✅ **Context-aware cancellation** - proper Go patterns for lifecycle management
 
 ## Error Handling
-
-The SDK provides comprehensive error handling following Go conventions with typed errors:
-
-```go
-package main
-
-import (
-    "context"
-    "errors"
-    "log"
-    "github.com/snappay/snappay-go"
-)
-
-func comprehensiveErrorHandling() {
-    ctx := context.Background()
-    client, err := snappay.NewClient(nil)
-    if err != nil {
-        log.Fatalf("Failed to create client: %v", err)
-    }
-
-    customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
-        CusID: "cus_123",
-        Email: "test@example.com",
-    })
-    if err != nil {
-        // Check for specific error types
-        var authErr *snappay.AuthenticationError
-        var validationErr *snappay.ValidationError
-        var rateLimitErr *snappay.RateLimitError
-        var notFoundErr *snappay.NotFoundError
-        var serverErr *snappay.ServerError
-
-        switch {
-        case errors.As(err, &authErr):
-            log.Printf("Invalid API key: %v", authErr)
-        case errors.As(err, &validationErr):
-            log.Printf("Invalid parameters: %v", validationErr)
-        case errors.As(err, &rateLimitErr):
-            log.Printf("Rate limit exceeded: %v", rateLimitErr)
-        case errors.As(err, &notFoundErr):
-            log.Printf("Resource not found: %v", notFoundErr)
-        case errors.As(err, &serverErr):
-            log.Printf("Server error: %v", serverErr)
-        case errors.Is(err, context.DeadlineExceeded):
-            log.Printf("Request timed out: %v", err)
-        case errors.Is(err, context.Canceled):
-            log.Printf("Request was cancelled: %v", err)
-        default:
-            log.Printf("Unexpected error: %v", err)
-        }
-        return
-    }
-
-    log.Printf("Success: %+v", customer)
-}
-```
-
 ### Error Types
 
 ```go
@@ -806,519 +471,3 @@ type ServerError struct {
     ReqID     string
 }
 ```
-
-### Context Timeouts and Cancellation
-
-```go
-import "time"
-
-// Set timeout for operations
-func withTimeout() error {
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
-
-    customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
-        Email: "test@example.com",
-    })
-    if err != nil {
-        if errors.Is(err, context.DeadlineExceeded) {
-            log.Println("Request timed out after 10 seconds")
-        }
-        return err
-    }
-
-    log.Printf("Customer: %+v", customer)
-    return nil
-}
-
-// Cancellable operations
-func withCancellation() error {
-    ctx, cancel := context.WithCancel(context.Background())
-
-    // Cancel after some condition
-    go func() {
-        time.Sleep(5 * time.Second)
-        cancel() // Cancel the operation
-    }()
-
-    customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
-        Email: "test@example.com",
-    })
-    if err != nil {
-        if errors.Is(err, context.Canceled) {
-            log.Println("Request was cancelled")
-        }
-        return err
-    }
-
-    log.Printf("Customer: %+v", customer)
-    return nil
-}
-```
-
-## Complete Integration Example
-
-Here's a comprehensive example showing all major SDK features:
-
-```go
-package main
-
-import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "log"
-    "sync"
-    "time"
-    "github.com/snappay/snappay-go"
-)
-
-type SnapPayService struct {
-    client *snappay.Client
-    mu     sync.RWMutex
-}
-
-func NewSnapPayService() (*SnapPayService, error) {
-    client, err := snappay.NewClient(nil)
-    if err != nil {
-        return nil, err
-    }
-
-    return &SnapPayService{client: client}, nil
-}
-
-type CheckoutResult struct {
-    CustomerID  string
-    CheckoutURL string
-    Error       error
-}
-
-func (s *SnapPayService) CreateCustomerAndCheckout(ctx context.Context, email, productID string) CheckoutResult {
-    // 1. Customer Management
-    customer, err := s.client.GetCustomer(ctx, snappay.GetCustomerArgs{
-        CusID: "customer_123",
-        Email: email,
-        Name:  stringPtr("John Doe"),
-    })
-    if err != nil {
-        return CheckoutResult{Error: fmt.Errorf("failed to get customer: %w", err)}
-    }
-    log.Printf("Customer ID: %s", customer.CustomerID)
-
-    // 2. Create Checkout Session
-    checkout, err := s.client.CreateCheckoutSession(ctx, snappay.CreateCheckoutSessionArgs{
-        CustomerID: customer.CustomerID,
-        ProductID:  productID,
-        SuccessURL: "https://yourapp.com/success",
-        CancelURL:  stringPtr("https://yourapp.com/cancel"),
-        Provider:   snappay.ProviderStripe,
-    })
-    if err != nil {
-        return CheckoutResult{Error: fmt.Errorf("failed to create checkout: %w", err)}
-    }
-
-    return CheckoutResult{
-        CustomerID:  customer.CustomerID,
-        CheckoutURL: checkout.URL,
-    }
-}
-
-type AccessResult struct {
-    HasAccess bool
-    Usage     int64
-    Remaining *int64
-    Error     error
-}
-
-func (s *SnapPayService) CheckUserAccess(ctx context.Context, customerID, featureID string) AccessResult {
-    // 3. Check Access
-    access, err := s.client.CheckAccess(ctx, snappay.CheckAccessArgs{
-        CustomerID: customerID,
-        FeatureID:  featureID,
-    })
-    if err != nil {
-        return AccessResult{Error: fmt.Errorf("failed to check access: %w", err)}
-    }
-
-    if !access.HasAccess {
-        return AccessResult{HasAccess: false}
-    }
-
-    // 4. Track Feature Usage
-    _, err = s.client.TrackUsage(ctx, snappay.TrackUsageArgs{
-        CustomerID:     customerID,
-        FeatureID:      "api-calls",
-        Usage:          1,
-        IdempotencyKey: stringPtr(fmt.Sprintf("op-%d", time.Now().Unix())),
-    })
-    if err != nil {
-        return AccessResult{Error: fmt.Errorf("failed to track usage: %w", err)}
-    }
-
-    // 5. Get Usage Statistics
-    usage, err := s.client.GetUsage(ctx, snappay.GetUsageArgs{
-        CustomerID: customerID,
-        FeatureID:  "api-calls",
-    })
-    if err != nil {
-        return AccessResult{Error: fmt.Errorf("failed to get usage: %w", err)}
-    }
-
-    return AccessResult{
-        HasAccess: true,
-        Usage:     usage.TotalUsage,
-        Remaining: usage.Remaining,
-    }
-}
-
-func (s *SnapPayService) StartEventProcessing(ctx context.Context) error {
-    eventCh, errCh, err := s.client.ListenForEvents(ctx)
-    if err != nil {
-        return err
-    }
-
-    log.Println("Started event processing...")
-
-    for {
-        select {
-        case <-ctx.Done():
-            return ctx.Err()
-
-        case err := <-errCh:
-            log.Printf("Event stream error: %v", err)
-            return err
-
-        case event := <-eventCh:
-            go s.handleEvent(event) // Process events concurrently
-        }
-    }
-}
-
-func (s *SnapPayService) handleEvent(event snappay.Event) {
-    switch event.EventType {
-    case "subscription.created":
-        var payload snappay.SubscriptionEventData
-        if err := json.Unmarshal(event.Data, &payload); err != nil {
-            log.Printf("Error unmarshaling subscription event: %v", err)
-            return
-        }
-        log.Printf("New subscription for %s", payload.Customer.Email)
-
-    case "payment_intent.succeeded":
-        var payload snappay.InvoiceEventData
-        if err := json.Unmarshal(event.Data, &payload); err != nil {
-            log.Printf("Error unmarshaling invoice event: %v", err)
-            return
-        }
-        log.Printf("Payment successful for %s", payload.Customer.Email)
-    }
-}
-
-func main() {
-    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-    defer cancel()
-
-    service, err := NewSnapPayService()
-    if err != nil {
-        log.Fatalf("Failed to create service: %v", err)
-    }
-
-    // Create checkout for a customer
-    checkoutResult := service.CreateCustomerAndCheckout(ctx, "customer@example.com", "premium-plan")
-    if checkoutResult.Error != nil {
-        log.Fatalf("Checkout failed: %v", checkoutResult.Error)
-    }
-
-    fmt.Printf("Redirect to: %s\n", checkoutResult.CheckoutURL)
-
-    // Check if user has access to features
-    accessResult := service.CheckUserAccess(ctx, checkoutResult.CustomerID, "premium-features")
-    if accessResult.Error != nil {
-        log.Fatalf("Access check failed: %v", accessResult.Error)
-    }
-
-    if accessResult.HasAccess {
-        fmt.Printf("Feature access granted. Usage: %d\n", accessResult.Usage)
-        if accessResult.Remaining != nil {
-            fmt.Printf("Remaining: %d\n", *accessResult.Remaining)
-        }
-    } else {
-        fmt.Println("Upgrade required for this feature")
-    }
-
-    // Start event processing (this would run indefinitely in a real app)
-    // go service.StartEventProcessing(context.Background())
-}
-
-// Helper function for string pointers
-func stringPtr(s string) *string {
-    return &s
-}
-```
-
-## Framework Integrations
-
-### Gin Integration
-
-```go
-package main
-
-import (
-    "context"
-    "net/http"
-    "github.com/gin-gonic/gin"
-    "github.com/snappay/snappay-go"
-)
-
-func main() {
-    // Initialize snappay client
-    client, err := snappay.NewClient(nil)
-    if err != nil {
-        panic(err)
-    }
-
-    r := gin.Default()
-
-    // Create checkout endpoint
-    r.POST("/checkout", func(c *gin.Context) {
-        var req struct {
-            Email     string `json:"email" binding:"required"`
-            ProductID string `json:"product_id" binding:"required"`
-        }
-
-        if err := c.ShouldBindJSON(&req); err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-            return
-        }
-
-        // Get or create customer
-        customer, err := client.GetCustomer(c.Request.Context(), snappay.GetCustomerArgs{
-            Email: req.Email,
-        })
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get customer"})
-            return
-        }
-
-        // Create checkout session
-        session, err := client.CreateCheckoutSession(c.Request.Context(), snappay.CreateCheckoutSessionArgs{
-            CustomerID: customer.CustomerID,
-            ProductID:  req.ProductID,
-            SuccessURL: "https://yourapp.com/success",
-            CancelURL:  stringPtr("https://yourapp.com/cancel"),
-        })
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create checkout"})
-            return
-        }
-
-        c.JSON(http.StatusOK, gin.H{
-            "checkout_url": session.URL,
-            "customer_id":  customer.CustomerID,
-        })
-    })
-
-    // Check access endpoint
-    r.GET("/access/:customer_id/:feature_id", func(c *gin.Context) {
-        customerID := c.Param("customer_id")
-        featureID := c.Param("feature_id")
-
-        access, err := client.CheckAccess(c.Request.Context(), snappay.CheckAccessArgs{
-            CustomerID: customerID,
-            FeatureID:  featureID,
-        })
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check access"})
-            return
-        }
-
-        c.JSON(http.StatusOK, gin.H{
-            "has_access": access.HasAccess,
-            "remaining":  access.UsageRemaining,
-        })
-    })
-
-    r.Run(":8080")
-}
-```
-
-### Echo Integration
-
-```go
-package main
-
-import (
-    "net/http"
-    "github.com/labstack/echo/v4"
-    "github.com/snappay/snappay-go"
-)
-
-func main() {
-    client, err := snappay.NewClient(nil)
-    if err != nil {
-        panic(err)
-    }
-
-    e := echo.New()
-
-    e.POST("/checkout", func(c echo.Context) error {
-        var req struct {
-            Email     string `json:"email"`
-            ProductID string `json:"product_id"`
-        }
-
-        if err := c.Bind(&req); err != nil {
-            return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-        }
-
-        customer, err := client.GetCustomer(c.Request().Context(), snappay.GetCustomerArgs{
-            Email: req.Email,
-        })
-        if err != nil {
-            return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get customer"})
-        }
-
-        session, err := client.CreateCheckoutSession(c.Request().Context(), snappay.CreateCheckoutSessionArgs{
-            CustomerID: customer.CustomerID,
-            ProductID:  req.ProductID,
-            SuccessURL: "https://yourapp.com/success",
-        })
-        if err != nil {
-            return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create checkout"})
-        }
-
-        return c.JSON(http.StatusOK, map[string]interface{}{
-            "checkout_url": session.URL,
-            "customer_id":  customer.CustomerID,
-        })
-    })
-
-    e.Logger.Fatal(e.Start(":8080"))
-}
-```
-
-### Fiber Integration
-
-```go
-package main
-
-import (
-    "github.com/gofiber/fiber/v2"
-    "github.com/snappay/snappay-go"
-)
-
-func main() {
-    client, err := snappay.NewClient(nil)
-    if err != nil {
-        panic(err)
-    }
-
-    app := fiber.New()
-
-    app.Post("/checkout", func(c *fiber.Ctx) error {
-        var req struct {
-            Email     string `json:"email"`
-            ProductID string `json:"product_id"`
-        }
-
-        if err := c.BodyParser(&req); err != nil {
-            return c.Status(400).JSON(fiber.Map{"error": err.Error()})
-        }
-
-        customer, err := client.GetCustomer(c.Context(), snappay.GetCustomerArgs{
-            Email: req.Email,
-        })
-        if err != nil {
-            return c.Status(500).JSON(fiber.Map{"error": "Failed to get customer"})
-        }
-
-        session, err := client.CreateCheckoutSession(c.Context(), snappay.CreateCheckoutSessionArgs{
-            CustomerID: customer.CustomerID,
-            ProductID:  req.ProductID,
-            SuccessURL: "https://yourapp.com/success",
-        })
-        if err != nil {
-            return c.Status(500).JSON(fiber.Map{"error": "Failed to create checkout"})
-        }
-
-        return c.JSON(fiber.Map{
-            "checkout_url": session.URL,
-            "customer_id":  customer.CustomerID,
-        })
-    })
-
-    app.Listen(":8080")
-}
-```
-
-## Concurrency and Thread Safety
-
-The `*Client` is safe for concurrent use across multiple goroutines:
-
-```go
-package main
-
-import (
-    "context"
-    "fmt"
-    "log"
-    "sync"
-    "github.com/snappay/snappay-go"
-)
-
-func main() {
-    client, err := snappay.NewClient(nil)
-    if err != nil {
-        log.Fatalf("Failed to create client: %v", err)
-    }
-
-    ctx := context.Background()
-    var wg sync.WaitGroup
-
-    // Safe to use the same client from multiple goroutines
-    for i := 0; i < 10; i++ {
-        wg.Add(1)
-        go func(id int) {
-            defer wg.Done()
-
-            customer, err := client.GetCustomer(ctx, snappay.GetCustomerArgs{
-                Email: fmt.Sprintf("user%d@example.com", id),
-            })
-            if err != nil {
-                log.Printf("Goroutine %d failed: %v", id, err)
-                return
-            }
-
-            log.Printf("Goroutine %d: Customer %s", id, customer.CustomerID)
-        }(i)
-    }
-
-    wg.Wait()
-    log.Println("All goroutines completed")
-}
-```
-
-## Type Definitions
-
-The Go SDK provides comprehensive type definitions for all API responses and configurations:
-
-```go
-// Core configuration
-type Config struct {
-    APIKey     string        // Required: snappay API key
-    BaseURL    string        // Optional: Custom API base URL
-    HTTPClient *http.Client  // Optional: Custom HTTP client
-    UserAgent  string        // Optional: Custom User-Agent header
-}
-
-// Payment provider options
-type Provider string
-
-const (
-    ProviderStripe Provider = "stripe"
-)
-
-// Complete type definitions for all API operations...
-```
-
-This completes the comprehensive snappay Go SDK documentation. The SDK provides idiomatic Go patterns with channels, context support, and explicit error handling for all your payment and subscription management needs.
